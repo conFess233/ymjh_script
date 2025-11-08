@@ -145,6 +145,59 @@ class TemplateMatcher:
         else:
             self.last_match = None
             return None, match_val
+        
+    def pyramid_template_match(self, screenshot: np.ndarray, threshold: float = 0.6) -> Tuple[Optional[Tuple[int, int]], float]:
+        """
+        使用图像金字塔多尺度模板匹配，返回最佳匹配结果的中心点坐标和匹配分数。
+        """
+        if self.template_gray is None:
+            raise RuntimeError("未设置模板，请先调用 set_template() 或 set_template_from_image()")
+
+        h, w = self.template_gray.shape[:2]
+        best_val = -1
+        best_loc = None
+        best_scale = 1.0
+        best_tw, best_th = w, h
+
+        screenshot_gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
+
+        # 计算缩放比例
+        h1, w1 = screenshot.shape[:2]
+        scale_x = w1 / self.base_w
+        scale_y = h1 / self.base_h
+        scale = (scale_x + scale_y) / 2
+
+        for scale in [scale]:
+            # 缩放模板
+            resized_template = cv2.resize(self.template_gray, (int(w * scale), int(h * scale)))
+            th, tw = resized_template.shape[:2]
+            if screenshot_gray.shape[0] < th or screenshot_gray.shape[1] < tw:
+                continue
+
+            res = cv2.matchTemplate(screenshot_gray, resized_template, self.method)
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+
+            if self.method in [cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]:
+                match_val = -min_val
+                match_loc = min_loc
+            else:
+                match_val = max_val
+                match_loc = max_loc
+
+            if match_val > best_val:
+                best_val = match_val
+                best_loc = match_loc
+                best_scale = scale
+                best_tw, best_th = tw, th
+
+        # 判断阈值
+        if best_val >= threshold and best_loc is not None:
+            center = (best_loc[0] + best_tw // 2, best_loc[1] + best_th // 2)
+            self.last_match = (center, best_val, (best_tw, best_th))
+            return center, best_val
+        else:
+            self.last_match = None
+            return None, best_val
 
     def visualize_match(self, screenshot: np.ndarray):
         """

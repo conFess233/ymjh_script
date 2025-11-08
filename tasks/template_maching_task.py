@@ -149,7 +149,7 @@ class TemplateMatchingTask(Task):
     def match_template(self, screenshot: np.ndarray, template_path: str, 
                     screenshot_size: Optional[Tuple[int, ...]] = None) -> Optional[Tuple[Tuple[int, int], float]]:
         """
-        使用传统模板匹配方法匹配指定模板。
+        使用模板匹配方法匹配指定模板。
 
         调用内部模板匹配器，根据输入截图与模板路径进行匹配，
         并返回匹配中心坐标及相似度。若匹配失败，返回 None。
@@ -172,10 +172,13 @@ class TemplateMatchingTask(Task):
         
         # 设置模板并进行匹配
         self.template_matcher.set_template(template_path)
-        match_result = self.template_matcher.match_scaled(
-            screenshot, 
-            threshold=self.default_match_threshold
-        )
+        if template_path != "template_img/tiao_guo_ju_qing.png":
+            match_result = self.template_matcher.match_scaled(
+                screenshot, 
+                threshold=self.default_match_threshold
+            )
+        else:
+            match_result = self.template_matcher.pyramid_template_match(screenshot)
 
         center, match_val = match_result
         if center is None:

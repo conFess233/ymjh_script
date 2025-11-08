@@ -1,8 +1,9 @@
-import win32api
+
+from ctypes import windll
 import win32gui
+import win32ui
 import numpy as np
 import cv2
-import dxcam
 import os
 
 
@@ -37,22 +38,12 @@ class WindowCapture:
         Returns:
             int or None: 找到的窗口句柄，未找到则返回None
         """
-        def enum_windows(hwnd, result):
-            if win32gui.IsWindowVisible(hwnd):
-                title = win32gui.GetWindowText(hwnd)
-                if self.window_title.lower() in title.lower():
-                    result.append((hwnd, title))
-
-        windows = []
-        win32gui.EnumWindows(enum_windows, windows)
-        if not windows:
+        try:
+            self.hwnd = win32gui.FindWindow(None, self.window_title)  # 获取窗口的句柄
+        except IndexError:
             print(f"未找到标题包含 '{self.window_title}' 的窗口")
             return None
-
-        hwnd, title = windows[0]
-        self.hwnd = hwnd
-        # print(f"选用窗口: hwnd={hwnd}, title={title}")
-        return hwnd
+        return self.hwnd
 
     def get_window_size(self):
         """
@@ -61,9 +52,17 @@ class WindowCapture:
         Returns:
             tuple: 窗口的宽度和高度 (width, height)
         """
-        screen_width = win32api.GetSystemMetrics(0)
-        screen_height = win32api.GetSystemMetrics(1)
-        return (screen_width, screen_height)
+        if not self.hwnd:
+            if not self.find_window():
+                return None
+            if not self.hwnd:
+                return None
+        left, top, right, bottom = win32gui.GetClientRect(self.hwnd)
+        w = right - left
+        h = bottom - top
+        if not w or not h:
+            return None
+        return (w, h)
 
     def capture(self):
         """
@@ -79,31 +78,46 @@ class WindowCapture:
                 return None
             if not self.hwnd:
                 return None
+            
+        # 统一处理DPI,防止高DPI显示器导致截图尺寸异常
+        try:
+            windll.user32.SetProcessDPIAware()
+        except AttributeError:
+            print("当前Windows版本为:", os.environ.get('OS'))
+            print("SetProcessDPIAware 函数不存在，请假查Windows版本是否支持")
 
-        # 获取客户区尺寸（不含标题栏和边框）
-        client_rect = win32gui.GetClientRect(self.hwnd)
-        client_left_top = win32gui.ClientToScreen(self.hwnd, (0, 0))
-        left = client_left_top[0]
-        top = client_left_top[1]
-        right = left + client_rect[2]
-        bottom = top + client_rect[3]
-        rect = (left, top, right, bottom)
-        # print(f"客户区区域: {rect}")
+        # 获取窗口区域(客户端)
+        left, top, right, bottom = win32gui.GetWindowRect(self.hwnd)
+        w = right - left - 19 # 减去窗口边框宽度
+        h = bottom - top - 48 # 减去窗口标题栏高度
 
-        # 屏幕尺寸
-        screen_width, screen_height = self.get_window_size()
-        rect = (
-            max(0, min(rect[0], screen_width - 1)),
-            max(0, min(rect[1], screen_height - 1)),
-            max(1, min(rect[2], screen_width)),
-            max(1, min(rect[3], screen_height)),
-        )
+        hwndDC = win32gui.GetWindowDC(self.hwnd)
+        mfcDC = win32ui.CreateDCFromHandle(hwndDC)
+        saveDC = mfcDC.CreateCompatibleDC()
 
-        # 捕获画面
-        cam = dxcam.create(output_color="BGR")
-        frame = cam.grab(region=rect)
+        saveBitMap = win32ui.CreateBitmap()
+        saveBitMap.CreateCompatibleBitmap(mfcDC, w, h)
+        saveDC.SelectObject(saveBitMap)
 
-        if frame is None:
+        # 截图
+        result = windll.user32.PrintWindow(self.hwnd, saveDC.GetSafeHdc(), 1)
+
+        # 从 bitmap 提取数据
+        bmpinfo = saveBitMap.GetInfo()
+        bmpstr = saveBitMap.GetBitmapBits(True)
+
+        # 将字节流转换为 numpy 数组（BGRX → BGR）
+        img = np.frombuffer(bmpstr, dtype=np.uint8)
+        img = img.reshape((h, w, 4))       # 4通道：B, G, R, X
+        frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+
+        # 清理资源
+        win32gui.DeleteObject(saveBitMap.GetHandle())
+        saveDC.DeleteDC()
+        mfcDC.DeleteDC()
+        win32gui.ReleaseDC(self.hwnd, hwndDC)
+
+        if result is None:
             print("捕获失败（窗口可能被最小化或遮挡）")
             return None
 

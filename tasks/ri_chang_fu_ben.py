@@ -65,11 +65,11 @@ class RiChangFuBen(TemplateMatchingTask):
             tuple: 处理后的匹配结果
         """
         # 特殊处理：如果模板路径是ri_chang_fu_ben_jie_shu.png，将横坐标设置为屏幕边缘
-        if ("template_img/ri_chang_fu_ben_jie_shu.png" in template_path or "template_img/tiao_guo_ju_qing.png" in template_path ) and match_result is not None:
+        if "template_img/ri_chang_fu_ben_jie_shu.png" in template_path and match_result is not None:
             center, match_val = match_result
             if center:
                 _, y = center  # 保持原始纵坐标
-                edge_x = screenshot_w - 10  # 设置为屏幕右侧边缘（留10像素边距）
+                edge_x = screenshot_w - 20 # 设置为屏幕右侧边缘
                 modified_center = (edge_x, y)
                 match_result = (modified_center, match_val)
                 print(f"特殊处理模板 {template_path}: 坐标从 {center} 修改为 {modified_center}")
