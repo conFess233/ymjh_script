@@ -1,7 +1,7 @@
 from tasks.task import Task
-from module.auto_clicker import AutoClicker
-from module.capture_window import WindowCapture
-from module.template_matcher import TemplateMatcher
+from modules.auto_clicker import AutoClicker
+from modules.capture_window import WindowCapture
+from modules.template_matcher import TemplateMatcher
 from abc import ABC, abstractmethod
 from time import sleep
 from typing import Optional, Tuple, Union
