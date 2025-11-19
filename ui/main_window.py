@@ -1,4 +1,13 @@
 import sys
+import os
+
+# 将项目根目录加入搜索路径
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
+
+# 如果要访问 ui/widgets 或 tasks
+sys.path.append(os.path.join(os.path.dirname(__file__), "ui"))
+sys.path.append(os.path.join(os.path.dirname(__file__), "tasks"))
+
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QPushButton, QLabel, QTextEdit, QStackedLayout, QFormLayout, 
@@ -6,15 +15,13 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtCore import Qt
-from widgets.animated_button import AnimatedButton
 from pages.page_dir import PageDir
 from pages.page_script import PageScript
 from pages.page_setting import PageSetting
 from widgets.animated_button import AnimatedButton
 from controllers.theme_controller import ThemeController
 from models.settings_model import SettingsModel
-
-
+import atexit
 
 class MainWindow(QMainWindow):
     """
@@ -79,8 +86,6 @@ class MainWindow(QMainWindow):
         self.theme_controller = ThemeController(self)
         # 设置
         self.settings_model = SettingsModel(main_window=self)
-        # 上次设置的主题
-        self.settings_model.apply_theme()
 
     # 页面切换
     def switch_page(self, name):
@@ -105,31 +110,43 @@ class MainWindow(QMainWindow):
         palette = QPalette()
 
         # Window
-        palette.setColor(QPalette.Window, QColor("#f0f0f0"))
-        palette.setColor(QPalette.WindowText, Qt.black)
+        palette.setColor(QPalette.ColorRole.Window, QColor("#f0f0f0"))
+        palette.setColor(QPalette.ColorRole.WindowText, Qt.GlobalColor.black)
 
         # Input / text areas
-        palette.setColor(QPalette.Base, QColor("#ffffff"))
-        palette.setColor(QPalette.AlternateBase, QColor("#f7f7f7"))
-        palette.setColor(QPalette.Text, Qt.black)
+        palette.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#f7f7f7"))
+        palette.setColor(QPalette.ColorRole.Text, Qt.GlobalColor.black)
+
+        # combo box
+        for combo in self.findChildren(QComboBox):
+            combo_palette = combo.palette()
+
+            # 设置文字颜色
+            combo_palette.setColor(QPalette.ColorRole.Text, QColor("#000000"))
+
+            # 设置下拉文字颜色
+            combo_palette.setColor(QPalette.ColorRole.ButtonText, QColor("#000000"))
+
+            combo.setPalette(combo_palette)
 
         # Buttons
-        palette.setColor(QPalette.Button, QColor("#e0e0e0"))
-        palette.setColor(QPalette.ButtonText, Qt.black)
+        palette.setColor(QPalette.ColorRole.Button, QColor("#e0e0e0"))
+        palette.setColor(QPalette.ColorRole.ButtonText, Qt.GlobalColor.black)
 
         # Highlight / selection
-        palette.setColor(QPalette.Highlight, QColor("#0078D7"))
-        palette.setColor(QPalette.HighlightedText, Qt.white)
+        palette.setColor(QPalette.ColorRole.Highlight, QColor("#0078D7"))
+        palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.white)
 
         # Links / tooltip
-        palette.setColor(QPalette.Link, QColor("#2980b9"))
-        palette.setColor(QPalette.ToolTipBase, QColor("#ffffdc"))
-        palette.setColor(QPalette.ToolTipText, Qt.black)
+        palette.setColor(QPalette.ColorRole.Link, QColor("#2980b9"))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#ffffdc"))
+        palette.setColor(QPalette.ColorRole.ToolTipText, Qt.GlobalColor.black)
 
         # Disabled text
-        palette.setColor(QPalette.Disabled, QPalette.Text, QColor("#808080"))
-        palette.setColor(QPalette.Disabled, QPalette.WindowText, QColor("#808080"))
-        palette.setColor(QPalette.Disabled, QPalette.ButtonText, QColor("#808080"))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor("#808080"))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor("#808080"))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor("#808080"))
         
         for btn in self.findChildren(AnimatedButton):
             btn.apply_light()
@@ -146,46 +163,47 @@ class MainWindow(QMainWindow):
         palette = QPalette()
 
         # Window
-        palette.setColor(QPalette.Window, QColor("#2b2b2b"))
-        palette.setColor(QPalette.WindowText, Qt.white)
+        palette.setColor(QPalette.ColorRole.Window, QColor("#2b2b2b"))
+        palette.setColor(QPalette.ColorRole.WindowText, Qt.GlobalColor.white)
 
         # Input areas
-        palette.setColor(QPalette.Base, QColor("#3c3f41"))
-        palette.setColor(QPalette.AlternateBase, QColor("#2b2b2b"))
-        palette.setColor(QPalette.Text, Qt.white)
+        palette.setColor(QPalette.ColorRole.Base, QColor("#3c3f41"))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#2b2b2b"))
+        palette.setColor(QPalette.ColorRole.Text, Qt.GlobalColor.white)
         
         # combo box
         for combo in self.findChildren(QComboBox):
             combo_palette = combo.palette()
 
             # 设置文字颜色
-            combo_palette.setColor(QPalette.Text, QColor("#000000"))
+            combo_palette.setColor(QPalette.ColorRole.Text, QColor("#FFFFFF"))
 
             # 设置下拉文字颜色
-            combo_palette.setColor(QPalette.ButtonText, QColor("#000000"))
+            combo_palette.setColor(QPalette.ColorRole.ButtonText, QColor("#FFFFFF"))
 
             combo.setPalette(combo_palette)
 
         # Buttons
-        palette.setColor(QPalette.Button, QColor("#3c3f41"))
-        palette.setColor(QPalette.ButtonText, Qt.white)
+        palette.setColor(QPalette.ColorRole.Button, QColor("#3c3f41"))
+        palette.setColor(QPalette.ColorRole.ButtonText, Qt.GlobalColor.white)
 
         # Highlight
-        palette.setColor(QPalette.Highlight, QColor("#367bf5"))
-        palette.setColor(QPalette.HighlightedText, Qt.white)
+        palette.setColor(QPalette.ColorRole.Highlight, QColor("#367bf5"))
+        palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.white)
 
         # Links / tooltip
-        palette.setColor(QPalette.Link, QColor("#64b5ff"))
-        palette.setColor(QPalette.ToolTipBase, QColor("#3c3f41"))
-        palette.setColor(QPalette.ToolTipText, QColor("#7a7a7a"))
+        palette.setColor(QPalette.ColorRole.Link, QColor("#64b5ff"))
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#3c3f41"))
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#7a7a7a"))
 
         # Disabled text
-        palette.setColor(QPalette.Disabled, QPalette.Text, QColor("#7a7a7a"))
-        palette.setColor(QPalette.Disabled, QPalette.WindowText, QColor("#7a7a7a"))
-        palette.setColor(QPalette.Disabled, QPalette.ButtonText, QColor("#7a7a7a"))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor("#7a7a7a"))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor("#7a7a7a"))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor("#7a7a7a"))
+
         
         for btn in self.findChildren(AnimatedButton):
-         btn.apply_dark()
+            btn.apply_dark()
 
         self.setPalette(palette)
         self.update()
@@ -198,13 +216,6 @@ class MainWindow(QMainWindow):
         """
         for w in self.findChildren(QWidget):
                 w.repaint()  
-    
-    def closeEvent(self, event):
-        # 在退出前保存当前 GUI 设置
-        font_size = self.font().pointSize()
-        theme = self.settings_model.get_current_theme()
-        self.settings_model.set_settings(theme=theme, font_size=font_size)
-        super().closeEvent(event)
         
     
 

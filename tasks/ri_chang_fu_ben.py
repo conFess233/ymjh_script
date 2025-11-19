@@ -49,7 +49,7 @@ class RiChangFuBen(TemplateMatchingTask):
         Returns:
             str: 任务名称
         """
-        return self.TASK_NAME
+        return "日常副本"
 
     def process_special_templates(self, template_path: str, match_result: Optional[tuple], screenshot_w: int, screenshot_h: int):
         """

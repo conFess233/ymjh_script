@@ -46,7 +46,7 @@ class LunJian(TemplateMatchingTask):
         Returns:
             str: 任务名称
         """
-        return self.TASK_NAME
+        return "论剑"
 
     def execute_task_logic(self):
         """执行具体的任务逻辑."""

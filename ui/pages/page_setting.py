@@ -10,7 +10,6 @@ class PageSetting(QWidget):
         self.main_window = main_window
         self.v = QVBoxLayout(self)
         self.v.addWidget(QLabel("设置"))
-        self.scroll = QScrollArea()
         self.inner = QWidget()
         self.form = QFormLayout(self.inner)
         # 控制器
@@ -18,20 +17,20 @@ class PageSetting(QWidget):
 
         self.theme_combo = QComboBox()
         self.theme_combo.addItems(["浅色主题", "深色主题"])
-        self.theme_combo.setCurrentText(self.settings_model.get_current_theme() if self.settings_model.get_current_theme() == "light" else "深色主题")
+        current_theme = self.settings_model.get_current_theme()
+        self.theme_combo.setCurrentText("浅色主题" if current_theme == "light" else "深色主题")
         self.theme_combo.currentIndexChanged.connect(self.apply_theme)
 
         self.font_spin = QSpinBox()
         self.font_spin.setRange(8, 32)
         self.font_spin.setValue(self.settings_model.get_current_font_size())
-        #self.font_spin.valueChanged.connect(self.apply_font_size)
+        self.font_spin.valueChanged.connect(
+            lambda value: self.settings_model.set_current_font_size(value)
+        )
 
         self.form.addRow("界面主题:", self.theme_combo)
         self.form.addRow("字体大小:", self.font_spin)
-        self.form.addRow(QCheckBox("自动保存日志"))
-        self.form.addRow(QCheckBox("自动重启脚本"))
-        self.scroll.setWidget(self.inner)
-        self.v.addWidget(self.scroll)
+        self.v.addWidget(self.inner)
         self.v.addStretch()
         
     def apply_theme(self):
@@ -40,13 +39,3 @@ class PageSetting(QWidget):
             self.settings_model.apply_theme("light")
         else:
             self.settings_model.apply_theme("dark")
-        print(self.settings_model.get_settings())
-
-
-
-    def apply_font_size(self):
-        """
-        应用当前设置的字体大小.
-        """
-        self.settings_model.font_size = self.font_spin.value()
-        self.settings_model.apply_font_size()

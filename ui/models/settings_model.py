@@ -1,6 +1,7 @@
 from controllers.theme_controller import ThemeController
 import json
 import os
+import atexit
 
 class SettingsModel:
     """
@@ -17,6 +18,9 @@ class SettingsModel:
         self.theme_controller = ThemeController(self.main_window)
         
         self.load_settings()
+
+        # 注册退出时的保存操作
+        atexit.register(self.save_settings)
         
     
     def apply_theme(self, theme=None):
@@ -37,8 +41,8 @@ class SettingsModel:
         """
         应用当前设置的字体大小.
         """
-        self.main_window.setFontSize(self.settings["font_size"])
-        self.main_window.repaint()
+        #self.main_window.setFontSize(self.settings["font_size"])
+        #self.main_window.repaint()
         
     def load_settings(self):
         try:
@@ -48,11 +52,19 @@ class SettingsModel:
         except FileNotFoundError:
             # 文件不存在则保存默认设置
             self.save_settings()
+        self.apply_theme()
+        self.set_current_font_size(self.settings["font_size"])
 
     def save_settings(self):
-        os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
-        with open(self.file_path, "w", encoding="utf-8") as f:
-            json.dump(self.settings, f, indent=4, ensure_ascii=False)
+        
+        try:
+            os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+            with open(self.file_path, "w", encoding="utf-8") as f:
+                json.dump(self.settings, f, indent=4, ensure_ascii=False)
+           # print("设置保存成功")
+        except Exception as e:
+            print(f"保存设置失败: {e}")
+        
 
     def set_settings(self, theme=None, font_size=None):
         if theme is not None:
@@ -81,4 +93,11 @@ class SettingsModel:
         获取当前设置的字体大小.
         """
         return self.settings["font_size"]
+    
+    def set_current_font_size(self, font_size):
+        """
+        设置当前字体大小.
+        """
+        self.settings["font_size"] = font_size
+        # self.apply_font_size()
         

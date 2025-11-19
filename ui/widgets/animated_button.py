@@ -18,7 +18,7 @@ class AnimatedButton(QPushButton):
         # 缩放动画
         self._anim = QPropertyAnimation(self, b"geometry", self)
         self._anim.setDuration(120)
-        self._anim.setEasingCurve(QEasingCurve.OutQuad)
+        self._anim.setEasingCurve(QEasingCurve.OutQuad) # type: ignore
         self._orig_rect = None
 
         # 不使用系统样式
@@ -56,17 +56,17 @@ class AnimatedButton(QPushButton):
     # ---------------- 绘制按钮 ----------------
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.Antialiasing) # type: ignore
 
         rect = QRectF(self.rect())
 
         painter.setBrush(QBrush(self.bg_color))
-        painter.setPen(Qt.NoPen)
+        painter.setPen(Qt.NoPen) # type: ignore
         painter.drawRoundedRect(rect, self.radius, self.radius)
 
         # 绘制文字
         painter.setPen(self.text_color)
-        painter.drawText(rect, Qt.AlignCenter, self.text())
+        painter.drawText(rect, Qt.AlignCenter, self.text()) # type: ignore
 
     # ---------------- 主题相关接口 ----------------
     def apply_light(self):

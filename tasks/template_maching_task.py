@@ -333,6 +333,79 @@ class TemplateMatchingTask(Task):
         """
         pass
 
+    def set_default_base_window_size(self, base_window_size: tuple):
+        """
+        设置默认基准窗口大小。
+
+        Args:
+            base_window_size (tuple): 新的基准窗口大小 (宽度, 高度)。
+        """
+        self.base_window_size = base_window_size
+
+    def set_default_match_threshold(self, threshold: float):
+        """
+        设置默认模板匹配阈值。
+
+        Args:
+            threshold (float): 新的匹配阈值（0.0 到 1.0 之间）。
+        """
+        self.default_match_threshold = threshold
+
+    def set_default_click_delay(self, delay: float):
+        """
+        设置默认点击延迟。
+
+        Args:
+            delay (float): 新的点击延迟（秒）。
+        """
+        self.default_click_delay = delay
+
+    def set_default_capture_retry_delay(self, delay: float):
+        """
+        设置默认捕获失败重试延迟。
+
+        Args:
+            delay (float): 新的重试延迟（秒）。
+        """
+        self.default_capture_retry_delay = delay
+
+    def set_default_template_retry_delay(self, delay: float):
+        """
+        设置默认模板匹配失败重试延迟。
+
+        Args:
+            delay (float): 新的重试延迟（秒）。
+        """
+        self.default_template_retry_delay = delay
+
+    def set_default_max_retry_attempts(self, max_attempts: int):
+        """
+        设置默认最大模板匹配重试次数。
+
+        Args:
+            max_attempts (int): 新的最大重试次数。
+        """
+        self.default_max_retry_attempts = max_attempts
+
+    def set_all_defaults(self, base_window_size: tuple, threshold: float, delay: float, capture_delay: float, template_delay: float, max_attempts: int):
+        """
+        设置所有默认参数。
+
+        Args:
+            base_window_size (tuple): 新的基准窗口大小 (宽度, 高度)。
+            threshold (float): 新的匹配阈值（0.0 到 1.0 之间）。
+            delay (float): 新的点击延迟（秒）。
+            capture_delay (float): 新的捕获失败重试延迟（秒）。
+            template_delay (float): 新的模板匹配失败重试延迟（秒）。
+            max_attempts (int): 新的最大重试次数。
+        """
+        self.set_default_base_window_size(base_window_size)
+        self.set_default_match_threshold(threshold)
+        self.set_default_click_delay(delay)
+        self.set_default_capture_retry_delay(capture_delay)
+        self.set_default_template_retry_delay(template_delay)
+        self.set_default_max_retry_attempts(max_attempts)
+        
     def __str__(self) -> str:
         """
         返回任务对象的字符串表示形式。
