@@ -292,7 +292,7 @@ class TemplateMatchingTask(Task):
         获取任务进度。
 
         Returns:
-            tuple: (已点击数量, 总数量, 完成百分比)。
+            tuple(int, int, float): (已点击数量, 总数量, 完成百分比)。
         """
         total = len(self.get_template_path_list())
         completed = len(self.clicked_templates)

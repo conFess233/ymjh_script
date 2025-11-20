@@ -21,7 +21,6 @@ from pages.page_setting import PageSetting
 from widgets.animated_button import AnimatedButton
 from controllers.theme_controller import ThemeController
 from models.settings_model import SettingsModel
-import atexit
 
 class MainWindow(QMainWindow):
     """

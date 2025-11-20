@@ -45,6 +45,9 @@ class SettingsModel:
         #self.main_window.repaint()
         
     def load_settings(self):
+        """
+        加载设置文件.
+        """
         try:
             with open(self.file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -56,7 +59,9 @@ class SettingsModel:
         self.set_current_font_size(self.settings["font_size"])
 
     def save_settings(self):
-        
+        """
+        保存当前设置到文件.
+        """
         try:
             os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
             with open(self.file_path, "w", encoding="utf-8") as f:
@@ -66,7 +71,14 @@ class SettingsModel:
             print(f"保存设置失败: {e}")
         
 
-    def set_settings(self, theme=None, font_size=None):
+    def apply_settings(self, theme=None, font_size=None):
+        """
+        应用当前设置.
+
+        Args:
+            theme (str, optional): 主题. Defaults to None.
+            font_size (int, optional): 字体大小. Defaults to None.
+        """
         if theme is not None:
             self.settings["theme"] = theme
         if font_size is not None:
