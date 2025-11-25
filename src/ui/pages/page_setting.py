@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFormLayout, QSpinBox, QComboBox, QProgressBar, QTextEdit, QScrollArea, QCheckBox
-from models.settings_model import SettingsModel
+from ..models.settings_model import SettingsModel
 
 class PageSetting(QWidget):
     """
@@ -27,18 +27,8 @@ class PageSetting(QWidget):
         # 主题切换信号连接到应用主题方法
         self.theme_combo.currentIndexChanged.connect(self.apply_theme)
 
-        # 创建字体大小选择框，并设置范围和当前值
-        self.font_spin = QSpinBox()
-        self.font_spin.setRange(8, 32)
-        self.font_spin.setValue(self.settings_model.get_current_font_size())
-        # 字体大小变化信号连接到设置字体大小方法
-        self.font_spin.valueChanged.connect(
-            lambda value: self.settings_model.set_current_font_size(value)
-        )
-
         # 将主题和字体控件添加到表单布局
         self.form.addRow("界面主题:", self.theme_combo)
-        self.form.addRow("字体大小:", self.font_spin)
         # 将表单布局和弹性空间添加到主布局
         self.v.addWidget(self.inner)
         self.v.addStretch()

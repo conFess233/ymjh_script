@@ -1,21 +1,18 @@
-from controllers.theme_controller import ThemeController
+from ..core.theme_manager import theme_manager
 import json
 import os
 import atexit
 
 class SettingsModel:
     """
-    设置模型类，包含界面主题、字体大小等设置.
+    设置模型类，包含界面主题等设置.
     """
     def __init__(self, main_window=None, file_path="settings.json"):
         self.file_path = os.path.abspath(file_path)
         self.settings = {
             "theme": "light",
-            "font_size": 12
         }
         self.main_window = main_window
-        
-        self.theme_controller = ThemeController(self.main_window)
         
         self.load_settings()
 
@@ -30,19 +27,11 @@ class SettingsModel:
         if theme is None:
             theme = self.settings["theme"]
         if theme == "light" or theme == "浅色主题":
-            self.theme_controller.apply_light()
+            theme_manager.apply_theme("light")
             self.settings["theme"] = "light"
         else:
-            self.theme_controller.apply_dark()
+            theme_manager.apply_theme("dark")
             self.settings["theme"] = "dark"
-        
-    
-    def apply_font_size(self):
-        """
-        应用当前设置的字体大小.
-        """
-        #self.main_window.setFontSize(self.settings["font_size"])
-        #self.main_window.repaint()
         
     def load_settings(self):
         """
@@ -56,7 +45,6 @@ class SettingsModel:
             # 文件不存在则保存默认设置
             self.save_settings()
         self.apply_theme()
-        self.set_current_font_size(self.settings["font_size"])
 
     def save_settings(self):
         """
@@ -71,22 +59,18 @@ class SettingsModel:
             print(f"保存设置失败: {e}")
         
 
-    def apply_settings(self, theme=None, font_size=None):
+    def apply_settings(self, theme=None):
         """
         应用当前设置.
 
         Args:
             theme (str, optional): 主题. Defaults to None.
-            font_size (int, optional): 字体大小. Defaults to None.
         """
         if theme is not None:
             self.settings["theme"] = theme
-        if font_size is not None:
-            self.settings["font_size"] = font_size
 
         self.save_settings()
         self.apply_theme()    
-        self.apply_font_size()
             
     def get_settings(self):
         """
@@ -99,17 +83,3 @@ class SettingsModel:
         获取当前设置的主题.
         """
         return self.settings["theme"]
-    
-    def get_current_font_size(self):
-        """
-        获取当前设置的字体大小.
-        """
-        return self.settings["font_size"]
-    
-    def set_current_font_size(self, font_size):
-        """
-        设置当前字体大小.
-        """
-        self.settings["font_size"] = font_size
-        # self.apply_font_size()
-        

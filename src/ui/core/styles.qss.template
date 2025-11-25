@@ -1,0 +1,166 @@
+/* ===========================================
+   全局 QWidget / QMainWindow
+   对应 QPalette.Window / WindowText
+   =========================================== */
+QMainWindow, QWidget {
+    background-color: @window_bg;
+    color: @text;
+    /* 设置全局字体，如果不设置可能会继承系统默认 */
+    font-size: 12px; 
+}
+
+/* ===========================================
+   输入框 / 文本区域 (QLineEdit, QTextEdit, QPlainTextEdit)
+   对应 QPalette.Base / AlternateBase / Text
+   =========================================== */
+QLineEdit, QTextEdit, QPlainTextEdit {
+    background-color: @base;
+    color: @text;
+    border: 2px solid @alternate_base; /* 使用 AlternateBase 模拟边框或深度 */
+}
+
+/* ===========================================
+   QComboBox (您的代码中手动设置的部分)
+   QSS 可以优雅地处理下拉箭头和列表样式
+   =========================================== */
+QComboBox {
+    background-color: @base;
+    color: @text;
+    border: 2px solid @alternate_base;
+    /* 设置下拉按钮的文字颜色 (ButtonText) */
+    /* 严格来说，QSS里设置QComboBox::drop-down的color更准确 */
+    selection-background-color: @highlight; /* 下拉菜单选中背景 */
+    selection-color: @highlighted_text;      /* 下拉菜单选中文字 */
+}
+/* 下拉列表本身 */
+QComboBox QAbstractItemView {
+    background-color: @base;
+    color: @text;
+    selection-background-color: @highlight;
+    selection-color: @highlighted_text;
+}
+
+/* ===========================================
+   按钮 (QPushButton) - 默认样式
+   添加圆角 border-radius
+   =========================================== */
+QPushButton {
+    background-color: @button;
+    color: @text;
+    border: 1px solid @alternate_base;
+    padding: 8px 16px; /* 增加内边距使按钮更好看 */
+    
+    /* 1. 圆角效果 */
+    border-radius: 6px; 
+}
+
+/* 悬停 (Hover) 状态 */
+QPushButton:hover {
+    /* 悬停时背景色微变 */
+    background-color: @alternate_base; 
+}
+
+/* ===========================================
+   点击 (Pressed) 状态 - 模拟动画/反馈
+   =========================================== */
+QPushButton:pressed {
+    /* 2. 点击下沉反馈： 
+       - 颜色微变
+       - 边框凹陷 (inset)
+       - 调整内边距，模拟内容向下/内移动 1px
+    */
+    background-color: @alternate_base; 
+    border-style: inset; 
+    padding-top: 9px;  
+    padding-bottom: 7px;
+}
+
+
+/* ===========================================
+   强调色按钮 (Primary Button)
+   =========================================== */
+QPushButton[class="primary"] {
+    background-color: @highlight;
+    color: @highlighted_text;
+    border: none;
+    border-radius: 6px; 
+    padding: 8px 16px; 
+}
+
+/* 强调按钮悬停状态 */
+QPushButton[class="primary"]:hover {
+    /* 悬停时颜色加深或变亮 */
+    background-color: @link; 
+}
+
+/* 强调按钮点击状态 */
+QPushButton[class="primary"]:pressed {
+    /* 强调按钮下沉效果：颜色更深，并下沉 */
+    background-color: @highlighted_text; /* 也可以使用@link 或 @disabled_text 使其变深 */
+    border-style: inset;
+    padding-top: 9px;
+    padding-bottom: 7px;
+    color: @highlight; /* 文本颜色也跟着切换，增强对比 */
+}
+
+/* ===========================================
+   高亮/选中 (对应 QPalette.Highlight / HighlightedText)
+   这主要影响表格、列表等组件的选中行
+   =========================================== */
+QTreeView::item:selected, QListView::item:selected, QTableView::item:selected {
+    background-color: @highlight;
+    color: @highlighted_text;
+}
+
+/* ===========================================
+   链接 / 提示框 (对应 QPalette.Link / ToolTipBase / ToolTipText)
+   =========================================== */
+QLabel a {
+    color: @link; /* 链接颜色 */
+}
+
+QToolTip {
+    background-color: @tooltip_base;
+    color: @tooltip_text;
+    border: 1px solid @alternate_base;
+}
+
+/* ===========================================
+   禁用状态 (对应 Disabled ColorGroup)
+   =========================================== */
+/* 禁用状态的文本 */
+*:disabled {
+    color: @disabled_text;
+}
+
+/* 禁用状态的按钮 */
+QPushButton:disabled {
+    background-color: @alternate_base;
+    color: @disabled_text;
+}
+
+/* ===========================================
+   QProgressBar 进度条
+   =========================================== */
+QProgressBar {
+    /* 进度条整体样式 (轨道) */
+    background-color: @alternate_base; /* 轨道颜色 */
+    color: @text; /* 进度条上的文本颜色 */
+    border: 1px solid @alternate_base;
+    border-radius: 5px; /* 轻微圆角 */
+    text-align: center; /* 确保进度百分比居中 */
+    height: 12px; /* 设置固定高度 */
+}
+
+/* 进度条的填充块 (Chunk) */
+QProgressBar::chunk {
+    background-color: @highlight; /* 填充色，使用强调色 */
+    border-radius: 5px; /* 匹配轨道圆角 */
+    
+    /* 可选：如果你想让进度条是条纹状的，可以添加以下样式 */
+    /*
+    border: 1px solid @highlight;
+    image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAcAAAAHCAYAAACzX/B9AAAAHklEQVQIWN3BAQEAAAKEAAgC4gX+ABcQjJ8J4oGfFwO7AAABJRU5ErkJggg==);
+    background-repeat: repeat-x;
+    */
+}

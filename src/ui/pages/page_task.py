@@ -1,21 +1,21 @@
-from PySide6.QtWidgets import QWidget, QGridLayout, QLabel, QFormLayout, QSpinBox, QComboBox, QProgressBar, QTextEdit, QScrollArea, QListWidget, QHBoxLayout, QVBoxLayout, QDialog
-from widgets.animated_button import AnimatedButton
+from PySide6.QtWidgets import QWidget, QGridLayout, QLabel, QFormLayout, QSpinBox, QComboBox, QProgressBar, QTextEdit, QScrollArea, QListWidget, QHBoxLayout, QVBoxLayout, QDialog, QPushButton
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QListWidgetItem
-from models.script_model import ScriptModel
-from widgets.task_list import TaskList
-from widgets.script_cfg_window import ScriptCfgWindow
-from core.logger import logger
+from ..models.task_model import TaskModel
+from ..widgets.task_list import TaskList
+from ..widgets.script_cfg_window import ScriptCfgWindow
+from ..core.logger import logger
+from ..core.theme_manager import theme_manager
 
 class PageScript(QWidget):
     """
-    脚本执行页面类，包含脚本运行列表，脚本设置、运行按钮、进度条、日志输出区域等.
+    任务执行页面类，包含任务运行列表，任务设置、运行按钮、进度条、日志输出区域等.
     """
     def __init__(self):
         # 调用父类的初始化方法
         super().__init__()
-        # 创建脚本数据模型
-        self.model = ScriptModel(self)
+        # 创建任务数据模型
+        self.model = TaskModel()
         # 创建主网格布局，并设置间距和边距
         self.main_layout = QGridLayout(self)
         self.main_layout.setSpacing(15)
@@ -32,13 +32,11 @@ class PageScript(QWidget):
         self.scfg_grid.setContentsMargins(10, 10, 10, 10)
 
         # 创建任务列表控件
-        self.task_list = TaskList("点击右侧“添加”按钮以添加任务")
+        self.task_list = TaskList(self.model, "点击右侧“添加”按钮以添加任务")
         # 创建日志输出区域
         self.log_area = QTextEdit()
         self.log_area.setPlaceholderText("日志输出区域")
         self.log_area.setReadOnly(True)
-        # 日志信号连接到日志追加方法
-        logger.log_signal.connect(self.append_log)
 
         # 创建状态标签并设置样式
         self.status_label = QLabel("")
@@ -54,25 +52,15 @@ class PageScript(QWidget):
         # 创建进度条并设置高度和样式
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(10)
-        self.progress_bar.setStyleSheet("""
-        QProgressBar {
-            border: 1px solid #bdc3c7;
-            border-radius: 5px;
-            text-align: center;
-        }
-        QProgressBar::chunk {
-            background-color: #3498db;
-            width: 10px;
-        }
-""")
 
         # 创建“运行任务”、“脚本配置”、“添加”按钮，并设置点击事件
-        self.run_btn = AnimatedButton("运行任务")
-        self.script_cfg_btn = AnimatedButton("脚本配置")
-        self.add_task_btn = AnimatedButton("添加")
+        self.run_btn = QPushButton("运行任务")
+        self.script_cfg_btn = QPushButton("脚本配置")
+        self.add_task_btn = QPushButton("添加")
             
-        self.add_task_btn.clicked.connect(lambda: self.add_task())
+        self.add_task_btn.clicked.connect(lambda: self.model.add_task(self.script_box.currentText()))
         self.script_cfg_btn.clicked.connect(lambda: self.open_script_cfg())
+        self.run_btn.clicked.connect(self._toggle_run_queue)
 
         # 设置按钮宽度
         self.add_task_btn.setFixedWidth(100)
@@ -111,22 +99,13 @@ class PageScript(QWidget):
         self.main_layout.addWidget(self.container, 0, 0)
         self.main_layout.addLayout(self.scfg_grid, 0, 1)
 
+        self._setup_connections()
 
     def update_status(self):
         """
         更新当前状态标签.
         """
         self.status_label.setText(self.model.get_status())
-
-    def add_task(self):
-        """
-        添加当前选中的脚本任务到任务列表.
-        """
-        task = self.script_box.currentText()
-        if task:
-            self.model.run_list.append(task)
-            self.task_list.addItem(QListWidgetItem(task))
-            logger.log(f"添加任务: {task}")
     
     def open_script_cfg(self):
         """
@@ -135,13 +114,84 @@ class PageScript(QWidget):
         cfg_window = ScriptCfgWindow()
         result = cfg_window.exec()
         if result == QDialog.DialogCode.Accepted:
-            logger.log("脚本配置已更新")
+            logger.info("脚本配置已更新")
             
-    def append_log(self, text: str):
+    def get_color_for_type(self, log_type: str) -> str:
         """
-        追加日志文本到日志区域.
+        根据日志类型返回对应的 HTML 颜色字符串。
+        """
+        if log_type == "ERROR":
+            # 红色
+            return "red"
+        elif log_type == "WARN":
+            # 橙色
+            return "orange"
+        elif log_type == "INFO":
+            # 默认颜色（例如：蓝色或黑色）
+            if theme_manager.is_dark_theme():
+                return "white"
+            else:
+                return "black"
+        else:
+            # 其他类型或默认颜色
+            return "white" # 假设日志区域背景是黑色的
 
-        Args:
-            text (str): 要追加的日志文本.
+    def display_log_message(self, message: str, log_type: str):
         """
-        self.log_area.append(text)
+        槽函数：接收日志并以不同的颜色显示。
+        """
+        color = self.get_color_for_type(log_type)
+        
+        # 1. 使用 HTML 格式化文本
+        html_message = f'<span style="color: {color};">{message}</span>'
+        
+        # 2. 将 HTML 文本追加到 QTextEdit
+        # 注意：使用 append 会在新行追加，并渲染 HTML
+        self.log_area.append(html_message)
+        
+        # 3. 滚动到底部
+        self.log_area.ensureCursorVisible()
+
+    
+    def _setup_connections(self):
+        """连接所有信号与槽."""
+        # 连接运行按钮到切换运行状态的方法
+        self.run_btn.clicked.connect(self._toggle_run_queue)
+        
+        # 连接 Model 的状态变化信号到 UI 更新方法
+        self.model.status_changed.connect(self.update_run_button_state)
+        
+        # ... (其他信号连接，如更新状态标签、日志等) ...
+        self.model.status_changed.connect(self.update_status)
+        logger.log_signal.connect(self.display_log_message)
+
+
+    # ⚡ 核心槽：处理运行按钮的点击
+    def _toggle_run_queue(self):
+        """
+        根据当前状态切换运行/停止任务队列。
+        """
+        if self.model.is_queue_running():
+            self.model.stop_queue()
+        else:
+            self.model.start_queue()
+
+    def update_run_button_state(self, status: str):
+        """
+        根据 TaskModel 发出的状态信号更新运行按钮的文本和样式。
+        """
+        # 1. 按钮文本和功能切换
+        if status == "运行中":
+            self.run_btn.setText("停止运行")
+            # 运行中时，可以选择禁用任务增删功能（例如禁用 Add 按钮）
+            self.add_task_btn.setEnabled(False) 
+        else: # "未运行", "队列已完成", "发生错误"
+            self.run_btn.setText("开始运行")
+            # 停止时，恢复任务增删功能
+            self.add_task_btn.setEnabled(True) 
+            
+        # 2. 确保按钮可用（如果需要）
+        # 如果队列为空，可能需要禁用按钮
+        is_list_empty = (len(self.model.get_run_list()) == 0)
+        self.run_btn.setEnabled(not is_list_empty)
+
