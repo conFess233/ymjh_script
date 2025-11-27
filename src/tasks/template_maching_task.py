@@ -7,6 +7,8 @@ from time import sleep
 from typing import Optional, Tuple, Union
 import os
 import numpy as np
+import threading
+from ..ui.core.logger import logger
 
 class TemplateMatchingTask(Task):
     """
@@ -18,12 +20,7 @@ class TemplateMatchingTask(Task):
     # 任务名，子类需重写此常量
     TASK_NAME = None
 
-    #窗口名
-    WINDOW_NAME = "一梦江湖"
-
-    def __init__(self, base_window_size: tuple = (2560, 1330), default_match_threshold: float = 0.6, 
-                default_click_delay: float = 5, default_capture_retry_delay: float = 2, 
-                default_template_retry_delay: float = 0.5, default_max_retry_attempts: int = 3):
+    def __init__(self, config: dict):
         """
         初始化模板匹配任务。
 
@@ -31,30 +28,50 @@ class TemplateMatchingTask(Task):
         并设置默认的匹配参数、延迟时间以及重试机制。
 
         Args:
-            base_window_size (tuple, optional): 基准窗口大小，用于缩放匹配区域。默认值为 (2560, 1330)。
-            default_match_threshold (float, optional): 默认匹配阈值（0~1 之间），匹配得分高于该值时视为匹配成功。默认 0.6。
-            default_click_delay (float, optional): 每次点击后的等待时间（秒）。默认 5 秒。
-            default_capture_retry_delay (float, optional): 捕获失败后的重试延迟时间（秒）。默认 2 秒。
-            default_template_retry_delay (float, optional): 模板匹配失败后的重试延迟时间（秒）。默认 0.5 秒。
-            default_max_retry_attempts (int, optional): 最大重试次数。默认 3。
+            base_window_size (tuple): 基准窗口大小，用于缩放匹配区域。默认值为 (2560, 1330)。
+            match_threshold (float): 默认匹配阈值（0~1 之间），匹配得分高于该值时视为匹配成功。默认 0.6。
+            click_delay (float): 每次点击后的等待时间（秒）。默认 5 秒。
+            capture_retry_delay (float): 捕获失败后的重试延迟时间（秒）。默认 2 秒。
+            template_retry_delay (float): 模板匹配失败后的重试延迟时间（秒）。默认 0.5 秒。
+            max_retry_attempts (int): 最大重试次数。默认 3。
         """
         # 初始化参数设置
-        self.base_window_size = base_window_size                     # 基准窗口大小，用于尺寸比例换算
-        self.default_match_threshold = default_match_threshold        # 默认模板匹配阈值
-        self.default_click_delay = default_click_delay                # 点击后的默认等待时间（秒）
-        self.default_capture_retry_delay = default_capture_retry_delay # 捕获失败重试延迟（秒）
-        self.default_template_retry_delay = default_template_retry_delay # 模板匹配失败重试延迟（秒）
-        self.default_max_retry_attempts = default_max_retry_attempts  # 最大模板匹配重试次数
+        self.base_window_size = config["base_window_size"]       # 基准窗口大小，用于尺寸比例换算
+        self.match_threshold = config["match_threshold"]        # 默认模板匹配阈值
+        self.click_delay = config["click_delay"]                # 点击后的默认等待时间（秒）
+        self.capture_retry_delay = config["capture_retry_delay"] # 捕获失败重试延迟（秒）
+        self.template_retry_delay = config["template_retry_delay"] # 模板匹配失败重试延迟（秒）
+        self.max_retry_attempts = config["max_retry_attempts"]  # 最大模板匹配重试次数
 
-        # 初始化功能组件
-        self.window_capture = WindowCapture(self.WINDOW_NAME)        # 窗口截图对象实例
-        self.template_matcher = TemplateMatcher(template_path="", 
-                                                base_window_size=self.get_base_window_size())    # 模板匹配器实例
-        self.auto_clicker = AutoClicker(self.WINDOW_NAME)           # 自动点击器实例
+        self.template_matcher = TemplateMatcher("", self.base_window_size)
 
         # 状态变量
         self._running = False                  # 当前任务运行状态标志
         self.clicked_templates = set()         # 已点击过的模板集合，用于防止重复点击
+
+        self._stop_event = threading.Event()  # 用于停止任务的事件对象
+
+    def configure_window_access(self, wincap: WindowCapture, clicker: AutoClicker):
+        """
+        实现抽象方法：接收并配置已连接的窗口访问对象。
+        """
+        self.window_capture = wincap
+        self.auto_clicker = clicker
+
+    def update_config(self, new_cfg: dict):
+        """
+        更新任务配置.
+
+        Args:
+            new_cfg (dict): 包含新任务配置的字典，键值对与任务参数对应。
+        """
+        self.base_window_size = new_cfg["base_window_size"]
+        self.match_threshold = new_cfg["match_threshold"]
+        self.click_delay = new_cfg["click_delay"]
+        self.capture_retry_delay = new_cfg["capture_retry_delay"]
+        self.template_retry_delay = new_cfg["template_retry_delay"]
+        self.max_retry_attempts = new_cfg["max_retry_attempts"]
+        self.template_matcher.set_base_window_size(self.base_window_size)
 
 
     @property
@@ -129,7 +146,7 @@ class TemplateMatchingTask(Task):
         screenshot = self.window_capture.capture()
         if screenshot is None:
             print("无法捕获窗口图像，稍后重试...")
-            sleep(self.default_capture_retry_delay)
+            self._sleep(self.capture_retry_delay)
             return None
         return screenshot
 
@@ -172,10 +189,10 @@ class TemplateMatchingTask(Task):
         
         # 设置模板并进行匹配
         self.template_matcher.set_template(template_path)
-        if template_path != "template_img/tiao_guo_ju_qing.png":
+        if not "tiao_guo_ju_qing.png" in template_path:
             match_result = self.template_matcher.match_scaled(
                 screenshot, 
-                threshold=self.default_match_threshold
+                threshold=self.match_threshold
             )
         else:
             match_result = self.template_matcher.pyramid_template_match(screenshot)
@@ -257,12 +274,15 @@ class TemplateMatchingTask(Task):
         print(f"找到模板 {template_path}, 点击位置: ({x}, {y})")
         
         if self.auto_clicker.click(x, y):
-            huo_dong_template = {"template_img/huo_dong.png", "template_img/huo_dong_hong_dian.png"}
+            # 获取本地图片路径并未包含在已点击模板中
+            template_dir = os.path.dirname(os.path.abspath(template_path))
+            huo_dong_template = {f"{template_dir}\\{t}" for t in {"huo_dong.png", "huo_dong_hong_dian.png"}}
             if template_path in huo_dong_template:
                 self.clicked_templates.update(huo_dong_template)
-            elif template_path != "template_img/tiao_guo_ju_qing.png":
+            elif not "tiao_guo_ju_qing.png" in template_path:
                 self.clicked_templates.add(template_path)
-            elif template_path == "template_img/ri_chang_fu_ben_jie_shu.png":
+            elif "ri_chang_fu_ben_jie_shu.png" in template_path:
+                self._sleep(1)
                 self.auto_clicker.click(x, y)
             total_templates = len(self.get_template_path_list())
             print(f"已点击的模板数量: {len(self.clicked_templates)}/{total_templates}")
@@ -271,6 +291,20 @@ class TemplateMatchingTask(Task):
             print(f"点击模板 {template_path} 失败")
             return False
 
+
+    def _sleep(self, delay: float) -> bool:
+            """
+            使用 Event.wait 代替 time.sleep 实现非阻塞延迟。
+            
+            Args:
+                delay: 延迟时间。
+                
+            Returns:
+                bool: 如果在延迟时间内 stop 事件被设置（任务被要求停止），返回 True。
+            """
+            # wait 方法会在 event 被 set 时立即返回 True
+            return self._stop_event.wait(delay)
+    
     def reset_clicked_templates(self):
         """
         重置已点击的模板记录。"""
@@ -342,41 +376,41 @@ class TemplateMatchingTask(Task):
         """
         self.base_window_size = base_window_size
 
-    def set_default_match_threshold(self, threshold: float):
+    def set_match_threshold(self, threshold: float):
         """
         设置默认模板匹配阈值。
 
         Args:
             threshold (float): 新的匹配阈值（0.0 到 1.0 之间）。
         """
-        self.default_match_threshold = threshold
+        self.match_threshold = threshold
 
-    def set_default_click_delay(self, delay: float):
+    def set_click_delay(self, delay: float):
         """
         设置默认点击延迟。
 
         Args:
             delay (float): 新的点击延迟（秒）。
         """
-        self.default_click_delay = delay
+        self.click_delay = delay
 
-    def set_default_capture_retry_delay(self, delay: float):
+    def set_capture_retry_delay(self, delay: float):
         """
         设置默认捕获失败重试延迟。
 
         Args:
             delay (float): 新的重试延迟（秒）。
         """
-        self.default_capture_retry_delay = delay
+        self.capture_retry_delay = delay
 
-    def set_default_template_retry_delay(self, delay: float):
+    def set_template_retry_delay(self, delay: float):
         """
         设置默认模板匹配失败重试延迟。
 
         Args:
             delay (float): 新的重试延迟（秒）。
         """
-        self.default_template_retry_delay = delay
+        self.template_retry_delay = delay
 
     def set_default_max_retry_attempts(self, max_attempts: int):
         """
@@ -385,9 +419,9 @@ class TemplateMatchingTask(Task):
         Args:
             max_attempts (int): 新的最大重试次数。
         """
-        self.default_max_retry_attempts = max_attempts
+        self.max_retry_attempts = max_attempts
 
-    def set_all_defaults(self, base_window_size: tuple, threshold: float, delay: float, capture_delay: float, template_delay: float, max_attempts: int):
+    def set_all_defaults(self, base_window_size: tuple, threshold: float, click_delay: float, capture_delay: float, template_delay: float, max_attempts: int):
         """
         设置所有默认参数。
 
@@ -400,10 +434,10 @@ class TemplateMatchingTask(Task):
             max_attempts (int): 新的最大重试次数。
         """
         self.set_default_base_window_size(base_window_size)
-        self.set_default_match_threshold(threshold)
-        self.set_default_click_delay(delay)
-        self.set_default_capture_retry_delay(capture_delay)
-        self.set_default_template_retry_delay(template_delay)
+        self.set_match_threshold(threshold)
+        self.set_click_delay(click_delay)
+        self.set_capture_retry_delay(capture_delay)
+        self.set_template_retry_delay(template_delay)
         self.set_default_max_retry_attempts(max_attempts)
         
     def __str__(self) -> str:
@@ -415,3 +449,12 @@ class TemplateMatchingTask(Task):
         """
         completed, total, percentage = self.get_progress()
         return f"{self.__class__.__name__}(name={self.get_task_name()}, running={self._running}, progress={completed}/{total}({percentage:.1f}%))"
+    
+    def log(self, message: str):
+        """
+        记录任务相关信息。
+
+        Args:
+            message (str): 要记录的信息。
+        """
+        pass 

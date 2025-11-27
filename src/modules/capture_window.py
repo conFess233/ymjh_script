@@ -18,32 +18,24 @@ class WindowCapture:
       获取、保存或清空缓存
     """
 
-    def __init__(self, window_title: str = ""):
+    def __init__(self):
         """
         初始化窗口捕获器.
 
         Args:
             window_title: 目标窗口标题（支持模糊匹配）
         """
-        self.window_title = window_title
         self.hwnd = None
         self.cache = None
 
-    def find_window(self):
+    def set_hwnd(self, hwnd: int):
         """
-        查找目标窗口.
+        设置目标窗口句柄.
 
-        通过枚举所有可见窗口并匹配标题来查找目标窗口。
-
-        Returns:
-            int or None: 找到的窗口句柄，未找到则返回None
+        Args:
+            hwnd: 目标窗口的句柄
         """
-        try:
-            self.hwnd = win32gui.FindWindow(None, self.window_title)  # 获取窗口的句柄
-        except IndexError:
-            print(f"未找到标题包含 '{self.window_title}' 的窗口")
-            return None
-        return self.hwnd
+        self.hwnd = hwnd
 
     def get_window_size(self):
         """
@@ -53,10 +45,7 @@ class WindowCapture:
             tuple: 窗口的宽度和高度 (width, height)
         """
         if not self.hwnd:
-            if not self.find_window():
-                return None
-            if not self.hwnd:
-                return None
+            return None
         left, top, right, bottom = win32gui.GetClientRect(self.hwnd)
         w = right - left
         h = bottom - top
@@ -74,10 +63,7 @@ class WindowCapture:
             numpy.ndarray: 截图图像，截取失败则返回None
         """
         if not self.hwnd:
-            if not self.find_window():
-                return None
-            if not self.hwnd:
-                return None
+            return None
             
         # 统一处理DPI,防止高DPI显示器导致截图尺寸异常
         try:
@@ -168,7 +154,7 @@ class WindowCapture:
 
 
 if __name__ == "__main__":
-    wc = WindowCapture("一梦江湖")
+    wc = WindowCapture()
     frame = wc.capture()
     if frame is not None:
         wc.save_cache("test_capture.png")

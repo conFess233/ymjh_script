@@ -3,10 +3,12 @@ from src.tasks.ri_chang_fu_ben import RiChangFuBen
 from src.tasks.lun_jian import LunJian
 from ..core.logger import logger
 import threading
-from time import sleep
+import win32gui
+import re
 from typing import Optional # 用于类型提示
-
-
+from ...modules.auto_clicker import AutoClicker
+from ...modules.capture_window import WindowCapture
+from .task_cfg_model import task_cfg_model
 
 class TaskModel(QObject): 
     """
@@ -18,6 +20,7 @@ class TaskModel(QObject):
     progress_changed = Signal(int)     # 进度条数值变化时发送
     running_task_changed = Signal(str) # 当前运行任务变化时发送
     run_list_changed = Signal()        # 运行列表增删改时发送（通知 UI 刷新列表）
+    connect_window_changed = Signal(str) # 连接窗口信号，参数为窗口标题
 
     # 任务名称到任务类的映射 (任务工厂)
     TASK_MAP = {
@@ -25,22 +28,102 @@ class TaskModel(QObject):
         "论剑": LunJian
     }
     
-    def __init__(self, window_title: str = "一梦江湖", parent=None): # 允许传入父对象
+    def __init__(self, parent=None): # 允许传入父对象
         super().__init__(parent)
-        self.window_title = window_title # 实际游戏窗口标题，后续会注入到任务实例
+        self.window_title = task_cfg_model.task_cfg["window_title"] # 实际游戏窗口标题，后续会注入到任务实例
         self._run_list = []              # 私有变量，存储任务实例 (Task Instances)
         self._running_task_name = "无"
-        self._status = "未运行"
+        self._status = "待机"
         self._progress = 0
         self._is_queue_running = False   # 队列是否在运行
+        
+        self.thread_timeout = 600 # 线程超时时间，单位秒
+        self.loop_count = 1 # 循环次数
+
+        self.wincap = WindowCapture()
+        self.clicker = AutoClicker()
+        self.hwnd = None # 窗口句柄
 
         # ⚡ 新增：用于任务队列多线程控制
         self._queue_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._current_task_index = -1 # 当前正在运行的任务在列表中的索引
+
+        task_cfg_model.task_cfg_updated.connect(self.load_task_cfg)
     
     # --- 2. 改进：任务工厂方法重命名和依赖注入 ---
-    
+    def load_task_cfg(self):
+        """
+        从任务配置模型加载任务配置.
+        """
+        self.window_title = task_cfg_model.task_cfg["window_title"]
+        self.thread_timeout = task_cfg_model.task_cfg["timeout"]
+        self.loop_count = task_cfg_model.task_cfg["loop_count"]
+        self.update_task_cfg(task_cfg_model.task_cfg)
+
+    def connect_window(self) -> bool:
+        """尝试查找并连接到目标窗口，并更新状态."""
+        logger.info(f"正在尝试连接窗口: {self.window_title}...")
+        
+        # 1. 窗口捕获连接 (找到句柄)
+        handles = self.get_target_window_handles(self.window_title)
+        
+        if handles:
+            self.hwnd = handles[0] # 取第一个匹配的句柄
+            self.wincap.set_hwnd(self.hwnd)
+            self.clicker.set_hwnd(self.hwnd)
+            self.clicker.connect_window()
+            window_name = win32gui.GetWindowText(self.hwnd)
+            if self.clicker.window: 
+                logger.info(f"窗口连接成功: {window_name}, 句柄: {self.hwnd}")
+                self.connect_window_changed.emit(window_name) # 发送连接成功信号
+                return True
+            else:
+                logger.error(f"窗口句柄找到，但 AutoClicker 无法连接。")
+                return False
+        else:
+            self.set_status("未找到窗口")
+            logger.error(f"未找到目标窗口: {self.window_title}")
+            return False
+
+    def get_target_window_handles(self, target_title_part: str):
+        """
+        查找所有标题中包含指定文本的窗口句柄。
+
+        Args:
+            target_title_part (str): 目标窗口标题中包含的文本。
+
+        Returns:
+            list: 匹配的目标窗口句柄列表。
+        """
+        
+        # 用于存储找到的句柄
+        target_handles = []
+
+        def callback(hwnd, extra):
+            """
+            EnumWindows 的回调函数。对每个顶级窗口执行。
+            """
+            # 获取窗口标题
+            window_title = win32gui.GetWindowText(hwnd)
+            
+            # 检查窗口是否可见且有标题
+            if win32gui.IsWindowVisible(hwnd) and window_title:
+                # 检查标题是否包含目标文本（不区分大小写）
+                if re.search(target_title_part, window_title, re.IGNORECASE):
+                    # 如果匹配，则将句柄添加到列表中
+                    target_handles.append(hwnd)
+            
+            # 必须返回 True 才能继续枚举下一个窗口
+            return True
+
+        # 调用 EnumWindows 开始枚举所有顶级窗口
+        # callback 函数是第一个参数，extra 是可选的用户自定义数据 (这里用 None)
+        win32gui.EnumWindows(callback, None)
+        
+        logger.info(f"找到 {len(target_handles)} 个匹配窗口: {target_handles}")
+        return target_handles
+        
     def create_task_instance(self, task_name: str):
         """
         根据名称创建任务实例。
@@ -55,13 +138,26 @@ class TaskModel(QObject):
             task_class = self.TASK_MAP.get(task_name)
             if task_class:
                 # 💡 关键改进：在这里创建任务实例。后续还需要传入配置和窗口标题。
-                task_instance = task_class() 
-            # 更好的做法：task_instance = task_class(window_title=self.window_title, config=self.get_settings(task_name))
+                task_instance = task_class(config=task_cfg_model.task_cfg) 
             return task_instance
         except Exception as e:
             logger.error(f"创建任务实例时出错: {task_name}, 错误: {e}")
             return None
+        
+    def update_task_cfg(self, cfg: dict):
+        """
+        更新列表中所有任务配置。
+        
+        Args:
+            cfg (dict): 新的任务配置。
+        """
+        try:
+            for task in self._run_list:
+                task.update_config(cfg)
+        except Exception as e:
+            logger.error(f"更新任务配置时出错: {e}")
 
+        logger.info(f"已同步更新列表中所有任务配置.")
     # --- 3. 改进：运行列表管理，支持列表组件操作 ---
 
     def get_run_list(self) -> list:
@@ -129,6 +225,9 @@ class TaskModel(QObject):
     def get_status(self):
         return self._status
     
+    def get_window_title(self):
+        return self.window_title
+    
     def set_running_task(self, task_name: str):
         """设置当前运行任务名称，并发送信号。"""
         if self._running_task_name != task_name:
@@ -153,7 +252,6 @@ class TaskModel(QObject):
         """获取任务名称列表."""
         return list(self.TASK_MAP.keys())
     
-    # ⚡ 新增核心方法：启动/停止队列
 
     def start_queue(self):
         """
@@ -166,6 +264,10 @@ class TaskModel(QObject):
         if not self._run_list:
             logger.warning("任务列表为空，无法启动。")
             self.set_status("未运行")
+            return
+        
+        if not self.connect_window():
+            self.set_status("启动失败：窗口未连接")
             return
             
         # 1. 重置停止事件
@@ -212,16 +314,22 @@ class TaskModel(QObject):
 
                 self._current_task_index = index
                 task_name = task.get_task_name()
+                
+                try:
+                    task.configure_window_access(self.wincap, self.clicker)
+                except Exception as e:
+                    logger.error(f"任务 {task_name} 依赖配置失败: {e}")
+                    # 如果配置失败，跳过此任务
+                    continue
+
                 logger.log(f"开始运行任务: {task_name}")
                 self.set_running_task(task_name)
 
-                # 1. 任务启动：设置任务内部运行状态
-                task.start() 
-                
                 # 2. 任务执行（假设 task.run() 是阻塞的）
                 # 假设任务实例有一个 run() 方法执行其主逻辑
                 try:
                     if hasattr(task, 'run'):
+                        print(f"任务 {task_name} 开始运行")
                         task.run() 
                     else:
                         # 如果任务没有 run() 方法，则调用 start() 并希望它阻塞

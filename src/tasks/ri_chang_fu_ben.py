@@ -3,12 +3,12 @@ from time import sleep
 import os
 from typing import Optional, Tuple
 from pathlib import Path
+from ..ui.core.logger import logger
 
 # 模板文件名列表
 TEMPLATE_FILE_NAMES_GLOBAL = [
     "huo_dong.png",
     "huo_dong_hong_dian.png",
-    "huo_dong.png",
     "jiang_hu.png",
     "jiang_hu_ji_shi.png",
     "ri_chang.png",
@@ -16,9 +16,9 @@ TEMPLATE_FILE_NAMES_GLOBAL = [
     "que_ren.png",
     "dan_ren_tiao_zhan.png",
     "gua_ji.png",
+    "tiao_guo_ju_qing.png",
     "ri_chang_fu_ben_jie_shu.png",
     "tui_ben_tui_dui.png",
-    "tiao_guo_ju_qing.png"
 ]
 
 # --- 动态获取基础路径 ---
@@ -53,10 +53,10 @@ class RiChangFuBen(TemplateMatchingTask):
     # 模板图片路径列表
     TEMPLATE_PATH_LIST = TEMPLATE_PATH_LIST_GLOBAL
 
-    def __init__(self):
+    def __init__(self, config: dict):
         """初始化日常副本任务."""
         # 调用父类初始化
-        super().__init__(default_match_threshold=0.7)
+        super().__init__(config)
 
     def get_template_path_list(self) -> list:
         """
@@ -97,7 +97,7 @@ class RiChangFuBen(TemplateMatchingTask):
                 edge_x = screenshot_w - 20 # 设置为屏幕右侧边缘
                 modified_center = (edge_x, y)
                 match_result = (modified_center, match_val)
-                print(f"特殊处理模板 {template_path}: 坐标从 {center} 修改为 {modified_center}")
+                logger.info(f"[{self.get_task_name()}]特殊处理模板 {template_path}: 坐标从 {center} 修改为 {modified_center}")
         
         return match_result
 
@@ -107,7 +107,7 @@ class RiChangFuBen(TemplateMatchingTask):
         
         # 验证模板文件
         if not self.validate_templates():
-            print("模板文件验证失败，任务无法启动")
+            logger.error(f"[{self.get_task_name()}]模板文件验证失败，任务无法启动")
             return
 
         try:
@@ -130,27 +130,27 @@ class RiChangFuBen(TemplateMatchingTask):
                         # 点击匹配到的模板
                         if self.click_template(template_path, center):
                             matched = True
-                            print(f"模板 {template_path} 已处理完成, 相似度{match_val:.3f}, 任务进度: {self.get_progress()[0]}/{self.get_progress()[1]} ({self.get_progress()[2]:.1f}%)")
-                            if template_path == "tui_ben_tui_dui.png":
-                                print("已执行退出副本操作，结束任务。")
+                            logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}")
+                            if "tui_ben_tui_dui.png" in template_path:
+                                logger.info(f"[{self.get_task_name()}]已执行退出副本操作，结束任务。")
                                 self.stop()
                             break  # 找到一个匹配后跳出循环
                     else:
-                        print(f"模板 {template_path} 未匹配到有效位置, 相似度:{match_val:.3f}")
-                        sleep(self.default_template_retry_delay)
+                        logger.info(f"[{self.get_task_name()}]模板 {template_path} 未匹配到有效位置, 相似度:{match_val:.3f}")
+                        self._sleep(self.template_retry_delay)
 
                 # 如果没有匹配到任何模板，检查是否已完成所有任务
                 if not matched:
-                    print("本轮未找到任何匹配模板")
+                    # logger.info(f"[{self.get_task_name()}]本轮未找到任何匹配模板")
                     if self.is_task_completed():
-                        print("所有模板已处理完成，任务结束")
+                        logger.info(f"[{self.get_task_name()}]所有模板已处理完成，任务结束")
                         break
                 
                 # 等待下次循环
-                sleep(self.default_click_delay)
+                self._sleep(self.click_delay)
 
         except KeyboardInterrupt:
-            print("任务被手动停止。")
+            logger.info(f"[{self.get_task_name()}]任务被手动停止。")
         finally:
             self.stop()
 
@@ -158,19 +158,21 @@ class RiChangFuBen(TemplateMatchingTask):
         """启动任务."""
         if not self._running:
             self._running = True
+            self._stop_event.clear()  # 确保事件未被设置
             self.clicked_templates.clear()  # 启动时清空点击记录
-            print(f"任务 {self.get_task_name()} 已启动")
+            logger.info(f"[{self.get_task_name()}]任务已启动")
         else:
-            print(f"任务 {self.get_task_name()} 已经在运行")
+            logger.info(f"[{self.get_task_name()}]任务已经在运行")
 
     def stop(self):
         """停止任务."""
         if self._running:
             self._running = False
             self.clicked_templates.clear()  # 停止时清空点击记录
-            print(f"任务 {self.get_task_name()} 已停止")
+            self._stop_event.set()  # 设置事件，通知任务停止
+            logger.info(f"[{self.get_task_name()}]任务已停止")
         else:
-            print(f"任务 {self.get_task_name()} 未在运行")
+            logger.info(f"[{self.get_task_name()}]任务未在运行")
 
     def __str__(self):
         """返回任务的字符串表示."""
@@ -183,5 +185,5 @@ class RiChangFuBen(TemplateMatchingTask):
         self.execute_task_logic()
 
 if __name__ == "__main__":
-    task = RiChangFuBen()
+    task = RiChangFuBen({})
     task.run()

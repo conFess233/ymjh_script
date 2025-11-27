@@ -38,6 +38,16 @@ class TemplateMatcher:
         self.method = cv2.TM_CCOEFF_NORMED  # 默认匹配方法
         self.template_mask = None
 
+    def set_base_window_size(self, base_window_size: tuple):
+        """
+        设置基准窗口尺寸。
+
+        Args:
+            base_window_size (tuple): 基准窗口尺寸 (宽度, 高度)。
+        """
+        self.base_window_size = base_window_size
+        self.base_w, self.base_h = base_window_size
+        
     def set_template(self, template_path: str):
         """
         加载新的模板图像。

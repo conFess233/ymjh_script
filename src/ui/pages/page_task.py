@@ -3,7 +3,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QListWidgetItem
 from ..models.task_model import TaskModel
 from ..widgets.task_list import TaskList
-from ..widgets.script_cfg_window import ScriptCfgWindow
+from .script_cfg_window import ScriptCfgWindow
 from ..core.logger import logger
 from ..core.theme_manager import theme_manager
 
@@ -46,7 +46,7 @@ class PageScript(QWidget):
         self.running_task = QLabel("")
         self.running_task.setStyleSheet("font-weight: bold; color: #2ecc71;")
         # 创建当前窗口标签及内容标签，并设置样式
-        self.window_title = QLabel("")
+        self.window_title = QLabel("无")
         self.window_title.setStyleSheet("font-weight: bold; color: #2ecc71;")
 
         # 创建进度条并设置高度和样式
@@ -54,13 +54,10 @@ class PageScript(QWidget):
         self.progress_bar.setFixedHeight(10)
 
         # 创建“运行任务”、“脚本配置”、“添加”按钮，并设置点击事件
-        self.run_btn = QPushButton("运行任务")
+        self.run_btn = QPushButton("开始运行")
         self.script_cfg_btn = QPushButton("脚本配置")
         self.add_task_btn = QPushButton("添加")
-            
-        self.add_task_btn.clicked.connect(lambda: self.model.add_task(self.script_box.currentText()))
-        self.script_cfg_btn.clicked.connect(lambda: self.open_script_cfg())
-        self.run_btn.clicked.connect(self._toggle_run_queue)
+        self.find_and_connect_btn = QPushButton("查找并连接窗口")
 
         # 设置按钮宽度
         self.add_task_btn.setFixedWidth(100)
@@ -84,8 +81,9 @@ class PageScript(QWidget):
         self.scfg_grid.addWidget(self.add_task_btn, 0, 2, 1, 1)
         self.scfg_grid.addWidget(self.script_cfg_btn, 0, 3, 1, 1)
         self.scfg_grid.addWidget(self.run_btn, 0, 4, 1, 1)
-        self.scfg_grid.addWidget(QLabel("当前窗口:"), 1, 0, 1, 1)
+        self.scfg_grid.addWidget(QLabel("当前连接窗口:"), 1, 0, 1, 1)
         self.scfg_grid.addWidget(self.window_title, 1, 1, 1, 1)
+        self.scfg_grid.addWidget(self.find_and_connect_btn, 1, 2, 1, 1)
         self.scfg_grid.addWidget(QLabel("当前状态:"), 2, 0, 1, 1)
         self.scfg_grid.addWidget(self.status_label, 2, 1, 1, 1)
         self.scfg_grid.addWidget(QLabel("当前运行任务:"), 2, 2, 1, 1)
@@ -112,9 +110,7 @@ class PageScript(QWidget):
         打开脚本配置窗口.
         """
         cfg_window = ScriptCfgWindow()
-        result = cfg_window.exec()
-        if result == QDialog.DialogCode.Accepted:
-            logger.info("脚本配置已更新")
+        cfg_window.exec()
             
     def get_color_for_type(self, log_type: str) -> str:
         """
@@ -163,6 +159,12 @@ class PageScript(QWidget):
         
         # ... (其他信号连接，如更新状态标签、日志等) ...
         self.model.status_changed.connect(self.update_status)
+        self.model.progress_changed.connect(self.progress_bar.setValue)
+        self.model.running_task_changed.connect(self.running_task.setText)
+        self.model.connect_window_changed.connect(self.window_title.setText)
+        self.add_task_btn.clicked.connect(lambda: self.model.add_task(self.script_box.currentText()))
+        self.script_cfg_btn.clicked.connect(lambda: self.open_script_cfg())
+        self.find_and_connect_btn.clicked.connect(lambda: self.model.connect_window())
         logger.log_signal.connect(self.display_log_message)
 
 
@@ -185,13 +187,11 @@ class PageScript(QWidget):
             self.run_btn.setText("停止运行")
             # 运行中时，可以选择禁用任务增删功能（例如禁用 Add 按钮）
             self.add_task_btn.setEnabled(False) 
+            self.task_list.setEnabled(False)
         else: # "未运行", "队列已完成", "发生错误"
             self.run_btn.setText("开始运行")
             # 停止时，恢复任务增删功能
             self.add_task_btn.setEnabled(True) 
-            
-        # 2. 确保按钮可用（如果需要）
-        # 如果队列为空，可能需要禁用按钮
-        is_list_empty = (len(self.model.get_run_list()) == 0)
-        self.run_btn.setEnabled(not is_list_empty)
+            self.task_list.setEnabled(True)
+
 

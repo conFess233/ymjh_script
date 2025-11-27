@@ -23,6 +23,13 @@ class Task(ABC):
             raise ValueError(f"子类 {self.__class__.__name__} 必须定义 task_name 常量")
         self._running = False
 
+    def configure_window_access(self, wincap, clicker):
+        """
+        由 TaskModel 调用，注入已连接的窗口捕获和点击对象。
+        子类应该重写此方法来接收和配置自身所需组件。
+        """
+        pass 
+
     @abstractmethod
     def start(self):
         """

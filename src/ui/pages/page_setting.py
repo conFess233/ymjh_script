@@ -17,7 +17,7 @@ class PageSetting(QWidget):
         self.inner = QWidget()
         self.form = QFormLayout(self.inner)
         # 创建设置数据模型（控制器）
-        self.settings_model = SettingsModel(main_window=self.main_window)
+        self.settings_model = SettingsModel()
 
         # 创建主题选择下拉框，并设置当前主题
         self.theme_combo = QComboBox()

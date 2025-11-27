@@ -74,7 +74,7 @@ class MainWindow(QMainWindow):
 
         # 控制器
         # 设置
-        self.settings_model = SettingsModel(main_window=self)
+        self.settings_model = SettingsModel()
         current_theme = self.settings_model.get_current_theme() if self.settings_model.get_current_theme() else "light"
         theme_manager.apply_theme(current_theme)
 

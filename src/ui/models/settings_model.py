@@ -2,17 +2,19 @@ from ..core.theme_manager import theme_manager
 import json
 import os
 import atexit
+from PySide6.QtCore import QObject, Signal
 
-class SettingsModel:
+class SettingsModel(QObject):
     """
     设置模型类，包含界面主题等设置.
     """
-    def __init__(self, main_window=None, file_path="settings.json"):
+
+    def __init__(self, file_path="settings.json"):
+        super().__init__()
         self.file_path = os.path.abspath(file_path)
         self.settings = {
             "theme": "light",
         }
-        self.main_window = main_window
         
         self.load_settings()
 
