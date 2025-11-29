@@ -9,6 +9,7 @@ import os
 import numpy as np
 import threading
 from ..ui.core.logger import logger
+import time
 
 class TemplateMatchingTask(Task):
     """
@@ -43,6 +44,8 @@ class TemplateMatchingTask(Task):
         self.template_retry_delay = config["template_retry_delay"] # 模板匹配失败重试延迟（秒）
         self.max_retry_attempts = config["max_retry_attempts"]  # 最大模板匹配重试次数
 
+        self.task_timeout = None # 任务允许的最大运行时间（秒）
+        self.start_time = None   # 任务开始运行的时间戳
         self.template_matcher = TemplateMatcher("", self.base_window_size)
 
         # 状态变量
@@ -243,13 +246,12 @@ class TemplateMatchingTask(Task):
     def process_special_templates(self, template_path: str, match_result: Optional[tuple], 
                                 screenshot_w: int, screenshot_h: int) -> Optional[tuple]:
         """
-        处理特殊模板的坐标修改。
+        处理特殊模板。
 
         子类可重写此方法，实现针对特定模板的匹配坐标调整逻辑。
 
         Args:
             template_path (str): 模板路径。
-            match_result (Optional[tuple]): 原始匹配结果。
             screenshot_w (int): 截图宽度。
             screenshot_h (int): 截图高度。
 
@@ -258,6 +260,32 @@ class TemplateMatchingTask(Task):
         """
         # 默认实现：不修改任何坐标
         return match_result
+    
+    def match_multiple_templates(self, template_path_list: list, target_template: str, match_val_threshold: float = 0.6) -> Optional[Tuple[Tuple[int, int], float]]:
+        """
+        匹配多个模板图片, 若所有图片都匹配成功, 则返回指定图片的坐标以及相似度
+
+        Args:
+            template_path_list: 模板图片路径列表
+            match_val_threshold: 匹配相似度阈值
+
+        Returns:
+            Optional[Tuple[Tuple[int, int], float]]: 
+                匹配结果 (中心坐标, 相似度)。未匹配到返回 None。
+        """
+        screenshot = self.capture_screenshot()
+        if screenshot is None:
+            return None
+        
+        target_match_result = None
+        for template_path in template_path_list:
+            match_result = self.match_template(screenshot, template_path)
+            if match_result is None or match_result[1] < match_val_threshold:
+                return None
+            if target_template in template_path:
+                target_match_result = match_result
+                
+        return target_match_result
 
     def click_template(self, template_path: str, center: tuple) -> bool:
         """
@@ -275,8 +303,7 @@ class TemplateMatchingTask(Task):
         
         if self.auto_clicker.click(x, y):
             # 获取本地图片路径并未包含在已点击模板中
-            template_dir = os.path.dirname(os.path.abspath(template_path))
-            huo_dong_template = {f"{template_dir}\\{t}" for t in {"huo_dong.png", "huo_dong_hong_dian.png"}}
+            huo_dong_template = ["template_img/huo_dong.png", "template_img/huo_dong_hong_dian.png"]
             if template_path in huo_dong_template:
                 self.clicked_templates.update(huo_dong_template)
             elif not "tiao_guo_ju_qing.png" in template_path:
@@ -450,6 +477,7 @@ class TemplateMatchingTask(Task):
         completed, total, percentage = self.get_progress()
         return f"{self.__class__.__name__}(name={self.get_task_name()}, running={self._running}, progress={completed}/{total}({percentage:.1f}%))"
     
+    
     def log(self, message: str):
         """
         记录任务相关信息。
@@ -458,3 +486,38 @@ class TemplateMatchingTask(Task):
             message (str): 要记录的信息。
         """
         pass 
+
+    def set_timeout(self, timeout: float):
+        """
+        设置任务允许的最大运行时间。
+        """
+        self.task_timeout = timeout
+        
+    def check_timeout(self) -> bool:
+        """
+        检查任务是否已超时。
+
+        Returns:
+            bool: 如果超时或未设置 timeout，返回 True；否则返回 False。
+        """
+        if self.task_timeout is None or self.start_time is None:
+            return False # 如果没有设置超时，则不中断
+            
+        if (time.time() - self.start_time) > self.task_timeout:
+            logger.warning(f"任务 {self.get_task_name()} 已超时 ({self.task_timeout} 秒)，正在停止。")
+            self.stop()
+            return True
+        return False
+
+    def run(self):
+            """
+            任务主入口，在执行具体逻辑前记录开始时间。
+            """
+            self.start() # 调用 start() 设置 _running = True
+            self.start_time = time.time() # 记录任务开始时间
+            try:
+                self.execute_task_logic()
+            except Exception as e:
+                logger.error(f"任务 {self.get_task_name()} 执行逻辑出错: {e}")
+            finally:
+                self.stop() # 确保任务结束时调用 stop()

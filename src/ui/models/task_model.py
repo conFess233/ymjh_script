@@ -37,8 +37,8 @@ class TaskModel(QObject):
         self._progress = 0
         self._is_queue_running = False   # 队列是否在运行
         
-        self.thread_timeout = 600 # 线程超时时间，单位秒
-        self.loop_count = 1 # 循环次数
+        self.thread_timeout = task_cfg_model.task_cfg["timeout"] # 线程超时时间，单位秒
+        self.loop_count = task_cfg_model.task_cfg["loop_count"] # 循环次数
 
         self.wincap = WindowCapture()
         self.clicker = AutoClicker()
@@ -63,13 +63,9 @@ class TaskModel(QObject):
 
     def connect_window(self) -> bool:
         """尝试查找并连接到目标窗口，并更新状态."""
-        logger.info(f"正在尝试连接窗口: {self.window_title}...")
+        logger.info(f"正在尝试连接窗口: {self.window_title}, 句柄: {self.hwnd}...")
         
-        # 1. 窗口捕获连接 (找到句柄)
-        handles = self.get_target_window_handles(self.window_title)
-        
-        if handles:
-            self.hwnd = handles[0] # 取第一个匹配的句柄
+        if self.hwnd:
             self.wincap.set_hwnd(self.hwnd)
             self.clicker.set_hwnd(self.hwnd)
             self.clicker.connect_window()
@@ -124,6 +120,15 @@ class TaskModel(QObject):
         logger.info(f"找到 {len(target_handles)} 个匹配窗口: {target_handles}")
         return target_handles
         
+    def set_hwnd(self, hwnd: int):
+        """
+        设置窗口句柄.
+        
+        Args:
+            hwnd (int): 窗口句柄.
+        """
+        self.hwnd = hwnd
+
     def create_task_instance(self, task_name: str):
         """
         根据名称创建任务实例。
@@ -154,10 +159,10 @@ class TaskModel(QObject):
         try:
             for task in self._run_list:
                 task.update_config(cfg)
+            logger.info(f"已同步更新列表中所有任务配置.")
         except Exception as e:
             logger.error(f"更新任务配置时出错: {e}")
 
-        logger.info(f"已同步更新列表中所有任务配置.")
     # --- 3. 改进：运行列表管理，支持列表组件操作 ---
 
     def get_run_list(self) -> list:
@@ -189,6 +194,17 @@ class TaskModel(QObject):
                 self.run_list_changed.emit() # 通知 UI 刷新列表
         except Exception as e:
             logger.error(f"移除任务时出错: {index}, 错误: {e}")
+
+    def clear_run_list(self):
+        """
+        清空运行列表中的所有任务实例。
+        """
+        try:
+            self._run_list.clear()
+            logger.info("已清空运行列表中的所有任务实例。")
+            self.run_list_changed.emit() # 通知 UI 刷新列表
+        except Exception as e:
+            logger.error(f"清空运行列表时出错: {e}")
     
     def move_task(self, from_index: int, to_index: int):
         """
@@ -300,64 +316,73 @@ class TaskModel(QObject):
 
     def _run_task_queue(self):
         """
-        在单独的线程中执行任务队列。
+        在单独的线程中执行任务队列，支持循环次数控制和任务超时监控。
         """
         self.set_queue_running(True)
         total_tasks = len(self._run_list)
         
+        current_loop = 0 # 记录当前循环次数
+        
         try:
-            for index, task in enumerate(self._run_list):
-                # 检查停止信号
-                if self._stop_event.is_set():
-                    logger.info("接收到停止信号，任务队列中止。")
-                    break
-
-                self._current_task_index = index
-                task_name = task.get_task_name()
+            # 外部循环：控制总的运行次数
+            while current_loop < self.loop_count and not self._stop_event.is_set():
+                logger.info(f"--- 开始第 {current_loop + 1} 次循环 (共 {self.loop_count} 次) ---")
                 
-                try:
-                    task.configure_window_access(self.wincap, self.clicker)
-                except Exception as e:
-                    logger.error(f"任务 {task_name} 依赖配置失败: {e}")
-                    # 如果配置失败，跳过此任务
-                    continue
+                # 内部循环：迭代任务列表
+                for index, task in enumerate(self._run_list):
+                    # 检查总停止信号
+                    if self._stop_event.is_set():
+                        logger.info("接收到停止信号，任务队列中止。")
+                        break 
 
-                logger.log(f"开始运行任务: {task_name}")
-                self.set_running_task(task_name)
-
-                # 2. 任务执行（假设 task.run() 是阻塞的）
-                # 假设任务实例有一个 run() 方法执行其主逻辑
-                try:
-                    if hasattr(task, 'run'):
-                        print(f"任务 {task_name} 开始运行")
-                        task.run() 
-                    else:
-                        # 如果任务没有 run() 方法，则调用 start() 并希望它阻塞
-                        task.start()
+                    self._current_task_index = index
+                    task_name = task.get_task_name()
+                    
+                    try:
+                        task.configure_window_access(self.wincap, self.clicker)
                         
-                except Exception as e:
-                    logger.error(f"任务 {task_name} 运行时发生错误: {e}")
-                    # 错误不影响队列继续
+                        # ⚡ 注入超时时间 (需要先在 TemplateMatchingTask 中添加 set_timeout 方法)
+                        if hasattr(task, 'set_timeout'):
+                            task.set_timeout(self.thread_timeout)
+                            
+                    except Exception as e:
+                        logger.error(f"任务 {task_name} 依赖配置失败: {e}")
+                        continue
+
+                    logger.info(f"开始运行任务: {task_name} (超时限制: {self.thread_timeout}秒)")
+                    self.set_running_task(task_name)
+
+                    # 2. 任务执行
+                    try:
+                        if hasattr(task, 'run'):
+                            # 任务的 run() 方法需要在内部实现超时检查
+                            task.run() 
+                        else:
+                            task.start()
+                            
+                    except Exception as e:
+                        logger.error(f"任务 {task_name} 运行时发生错误: {e}")
+                    
+                    # 3. 任务结束/清理 (确保任务停止)
+                    task.stop() # 这一步很关键，用于清理任务内部状态
+                    
+                    # 4. 更新进度
+                    progress_value = int((index + 1) / total_tasks * 100)
+                    self.set_progress(progress_value)
+                    logger.info(f"任务 {task_name} 完成。")
+
+                # 队列自然完成一次循环
+                if not self._stop_event.is_set():
+                    current_loop += 1
+                    self.set_progress(0) # 每轮结束后重置进度条
                 
-                # 3. 任务结束/清理 (确保任务停止)
-                task.stop()
-
-                # 4. 更新进度
-                progress_value = int((index + 1) / total_tasks * 100)
-                self.set_progress(progress_value)
-                logger.log(f"任务 {task_name} 完成。")
-
-            # 队列自然完成
+            # 循环结束后的状态处理
             if not self._stop_event.is_set():
                 self.set_status("队列已完成")
-                logger.info("所有任务执行完毕。")
+                logger.info(f"所有任务执行完毕，共运行 {current_loop} 次。")
             else:
                 self.set_status("已停止")
-                logger.info("任务队列已停止。")
-
-        except Exception as e:
-            logger.error(f"任务队列发生未知错误: {e}")
-            self.set_status("发生错误")
+                logger.info(f"任务队列已停止，共运行 {current_loop} 次。")
         
         finally:
             self.set_queue_running(False) # 最终设置为未运行

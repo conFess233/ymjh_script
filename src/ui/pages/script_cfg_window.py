@@ -1,5 +1,5 @@
-from PySide6.QtWidgets import QDialog, QLabel, QVBoxLayout, QPushButton, QSpinBox, QDoubleSpinBox, QGridLayout, QLineEdit
-from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QDialog, QLabel, QVBoxLayout, QPushButton, QSpinBox, QDoubleSpinBox, QGridLayout, QLineEdit, QFileDialog, QWidget
+from PySide6.QtCore import QTimer, Qt, QDir
 from ..models.task_cfg_model import task_cfg_model
 
 class ScriptCfgWindow(QDialog):
@@ -22,7 +22,6 @@ class ScriptCfgWindow(QDialog):
         # 创建“确定”按钮，并绑定点击事件为窗口接受
         accept_btn = QPushButton("确定")
         accept_btn.clicked.connect(self.apply_task_cfg)
-
         # 创建各项配置标签
         self.window_title = QLabel("目标窗口标题：")                           # 目标窗口标题
         self.base_window_size = QLabel("基准窗口大小：")                           # 基准窗口大小，用于尺寸比例换算
@@ -52,13 +51,13 @@ class ScriptCfgWindow(QDialog):
         # 创建默认模板匹配阈值输入框，范围0.1-1.0，步长0.1，默认0.6
         self.mt_input = QDoubleSpinBox()
         self.mt_input.setRange(0.1, 1.0)
-        self.mt_input.setSingleStep(0.1)
+        self.mt_input.setSingleStep(0.05)
         self.mt_input.setValue(0.6)
 
         # 创建点击后等待时间输入框，范围0-10，步长1，默认3
-        self.cd_input = QSpinBox()
+        self.cd_input = QDoubleSpinBox()
         self.cd_input.setRange(1, 10)
-        self.cd_input.setSingleStep(1)
+        self.cd_input.setSingleStep(0.5)
         self.cd_input.setValue(3)
 
         # 创建捕获失败重试延迟输入框，范围0-10，步长1，默认3
@@ -69,8 +68,8 @@ class ScriptCfgWindow(QDialog):
 
         # 创建模板匹配失败重试延迟输入框，范围0-10，步长1，默认3
         self.trd_input = QDoubleSpinBox()
-        self.trd_input.setRange(0.5, 10.0)
-        self.trd_input.setSingleStep(0.5)
+        self.trd_input.setRange(0.1, 10.0)
+        self.trd_input.setSingleStep(0.1)
         self.trd_input.setValue(0.5)
 
         # 创建最大模板匹配重试次数输入框，范围0-10，步长1，默认3
@@ -140,7 +139,6 @@ class ScriptCfgWindow(QDialog):
         self.mra_input.setValue(task_cfg["max_retry_attempts"])
         self.loop_count_input.setValue(task_cfg["loop_count"])
         self.timeout_input.setValue(task_cfg["timeout"])
-        print(task_cfg)
     
     def apply_task_cfg(self):
         """
@@ -157,5 +155,4 @@ class ScriptCfgWindow(QDialog):
             "loop_count": self.loop_count_input.value(),
             "timeout": self.timeout_input.value(),
         })
-        # 确保信号在窗口关闭前被处理。
-        QTimer.singleShot(10, self.close) # 10ms 后关闭窗口
+        self.accept()

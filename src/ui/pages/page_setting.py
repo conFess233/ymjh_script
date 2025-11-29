@@ -1,5 +1,7 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFormLayout, QSpinBox, QComboBox, QProgressBar, QTextEdit, QScrollArea, QCheckBox
 from ..models.settings_model import SettingsModel
+from PySide6.QtWidgets import QListWidget, QLineEdit, QPushButton, QFileDialog
+from PySide6.QtCore import QDir
 
 class PageSetting(QWidget):
     """

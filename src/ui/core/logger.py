@@ -9,6 +9,7 @@ class _Logger(QObject):
     """
     log_signal = Signal(str, str)
 
+    # 单例模式
     _instance = None
     _lock = threading.Lock()
 

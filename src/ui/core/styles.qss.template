@@ -156,11 +156,4 @@ QProgressBar {
 QProgressBar::chunk {
     background-color: @highlight; /* 填充色，使用强调色 */
     border-radius: 5px; /* 匹配轨道圆角 */
-    
-    /* 可选：如果你想让进度条是条纹状的，可以添加以下样式 */
-    /*
-    border: 1px solid @highlight;
-    image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAcAAAAHCAYAAACzX/B9AAAAHklEQVQIWN3BAQEAAAKEAAgC4gX+ABcQjJ8J4oGfFwO7AAABJRU5ErkJggg==);
-    background-repeat: repeat-x;
-    */
 }

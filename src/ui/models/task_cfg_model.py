@@ -3,9 +3,13 @@ import json
 
 from PySide6.QtCore import QObject, Signal
 from ..core.logger import logger
+import threading
 
 class TaskCfgModel(QObject):
     task_cfg_updated = Signal(dict) # 任务配置更新信号，参数为新的任务配置字典
+
+    _instance = None
+    _lock = threading.Lock()
         
     def __init__(self, file_path="task_config.json"):
         super().__init__()

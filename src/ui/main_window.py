@@ -4,7 +4,7 @@ import os
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QPushButton, QLabel, QTextEdit, QStackedLayout, QFormLayout, 
-    QSpinBox, QComboBox, QProgressBar, QCheckBox, QScrollArea
+    QSpinBox, QComboBox, QProgressBar, QCheckBox, QScrollArea, QLineEdit
 )
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtCore import Qt
@@ -20,6 +20,10 @@ class MainWindow(QMainWindow):
     """
     def __init__(self):
         super().__init__()
+        if not self.is_admin():
+            if not self.show_admin_warning():
+                self.close()
+                exit(1)
         self.setWindowTitle("YMJH Script")
         self.setGeometry(200, 100, 1200, 800)
 
@@ -58,7 +62,6 @@ class MainWindow(QMainWindow):
         self.stack_layout.addWidget(self.page_dir)
         self.stack_layout.addWidget(self.page_script)
         self.stack_layout.addWidget(self.page_setting)
-
         # 映射
         self.page_dict = {
             "dir": (self.page_dir, self.btn_dir),
@@ -94,6 +97,26 @@ class MainWindow(QMainWindow):
         btn.setEnabled(False)
         btn.setStyleSheet("background-color: #0078D7; color: white; font-weight: bold;")
 
+    def is_admin(self):
+        """检查当前是否以管理员权限运行"""
+        import ctypes
+        try:
+            # IsUserAnAdmin() 函数检查用户是否为管理员
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        except:
+            return False
+    
+    def show_admin_warning(self):
+        """显示管理员权限警告"""
+        from PySide6.QtWidgets import QMessageBox
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Warning) # type: ignore
+        msg.setText("警告")
+        msg.setInformativeText("当前用户不是管理员，部分功能可能受限。\n是否继续？")
+        msg.setWindowTitle("管理员权限警告")
+        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No) # type: ignore
+        ret = msg.exec()
+        return ret == QMessageBox.Yes # type: ignore
 
 def main():
     """

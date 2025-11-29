@@ -73,9 +73,9 @@ class WindowCapture:
             print("SetProcessDPIAware 函数不存在，请假查Windows版本是否支持")
 
         # 获取窗口区域(客户端)
-        left, top, right, bottom = win32gui.GetWindowRect(self.hwnd)
-        w = right - left - 19 # 减去窗口边框宽度
-        h = bottom - top - 48 # 减去窗口标题栏高度
+        left, top, right, bottom = win32gui.GetClientRect(self.hwnd)
+        w = right - left # 减去窗口边框宽度
+        h = bottom - top # 减去窗口标题栏高度
 
         hwndDC = win32gui.GetWindowDC(self.hwnd)
         mfcDC = win32ui.CreateDCFromHandle(hwndDC)

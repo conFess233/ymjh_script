@@ -1,14 +1,14 @@
 {
     "window_title": "一梦江湖",
-    "timeout": 600,
+    "timeout": 630,
     "loop_count": 1,
     "base_window_size": [
         2560,
         1330
     ],
-    "match_threshold": 0.65,
-    "click_delay": 1,
-    "capture_retry_delay": 2,
-    "template_retry_delay": 0.5,
+    "match_threshold": 0.7,
+    "click_delay": 1.5,
+    "capture_retry_delay": 3,
+    "template_retry_delay": 0.30000000000000004,
     "max_retry_attempts": 6
 }

@@ -57,41 +57,55 @@ class PageScript(QWidget):
         self.run_btn = QPushButton("开始运行")
         self.script_cfg_btn = QPushButton("脚本配置")
         self.add_task_btn = QPushButton("添加")
-        self.find_and_connect_btn = QPushButton("查找并连接窗口")
+        self.find_window_btn = QPushButton("查找窗口")
+        self.connect_window_btn = QPushButton("连接窗口")
+        self.show_window_btn = QPushButton("显示窗口")
+        self.clear_run_list_btn = QPushButton("清空列表")
 
         # 设置按钮宽度
+        self.find_window_btn.setFixedWidth(100)
         self.add_task_btn.setFixedWidth(100)
         self.script_cfg_btn.setFixedWidth(100)
         self.run_btn.setFixedWidth(100)
+        self.connect_window_btn.setFixedWidth(100)
 
         # 创建脚本选择下拉框，并添加任务名
-        self.script_box = QComboBox()
-        self.script_box.addItems(self.model.get_task_names())
-        self.script_box.setFixedWidth(200)
+        self.task_box = QComboBox()
+        self.task_box.addItems(self.model.get_task_names())
+        self.task_box.setFixedWidth(200)
+        self.hwnd_box = QComboBox()
+        self.hwnd_box.setFixedWidth(200)
+        self.hwnd_box.addItem("无")
 
         # 设置任务列表宽度
         self.task_list.setFixedWidth(200)
+        self.clear_run_list_btn.setFixedWidth(200)
         
         # 将任务列表控件添加到左侧垂直布局
         self.slist_vbox.addWidget(QLabel("任务列表"))
         self.slist_vbox.addWidget(self.task_list)
+        self.slist_vbox.addWidget(self.clear_run_list_btn)
         # 将各控件添加到脚本配置网格布局的指定位置
         self.scfg_grid.addWidget(QLabel("添加任务到任务列表:"), 0, 0, 1, 1)
-        self.scfg_grid.addWidget(self.script_box, 0, 1, 1, 1)
+        self.scfg_grid.addWidget(self.task_box, 0, 1, 1, 1)
         self.scfg_grid.addWidget(self.add_task_btn, 0, 2, 1, 1)
         self.scfg_grid.addWidget(self.script_cfg_btn, 0, 3, 1, 1)
         self.scfg_grid.addWidget(self.run_btn, 0, 4, 1, 1)
         self.scfg_grid.addWidget(QLabel("当前连接窗口:"), 1, 0, 1, 1)
         self.scfg_grid.addWidget(self.window_title, 1, 1, 1, 1)
-        self.scfg_grid.addWidget(self.find_and_connect_btn, 1, 2, 1, 1)
-        self.scfg_grid.addWidget(QLabel("当前状态:"), 2, 0, 1, 1)
-        self.scfg_grid.addWidget(self.status_label, 2, 1, 1, 1)
-        self.scfg_grid.addWidget(QLabel("当前运行任务:"), 2, 2, 1, 1)
-        self.scfg_grid.addWidget(self.running_task, 2, 3, 1, 1)
-        self.scfg_grid.addWidget(self.progress_bar, 3, 0, 1, 5)
+        self.scfg_grid.addWidget(QLabel("窗口句柄:"), 2, 0, 1, 1)
+        self.scfg_grid.addWidget(self.hwnd_box, 2, 1, 1, 1)
+        self.scfg_grid.addWidget(self.find_window_btn, 2, 2, 1, 1)
+        self.scfg_grid.addWidget(self.connect_window_btn, 2, 3, 1, 1)
+        self.scfg_grid.addWidget(self.show_window_btn, 2, 4, 1, 1)
+        self.scfg_grid.addWidget(QLabel("当前状态:"), 3, 0, 1, 1)
+        self.scfg_grid.addWidget(self.status_label, 3, 1, 1, 1)
+        self.scfg_grid.addWidget(QLabel("当前运行任务:"), 3, 2, 1, 1)
+        self.scfg_grid.addWidget(self.running_task, 3, 3, 1, 1)
+        self.scfg_grid.addWidget(self.progress_bar, 4, 0, 1, 5)
 
-        self.scfg_grid.addWidget(QLabel("日志"), 4, 0, 1, 1)
-        self.scfg_grid.addWidget(self.log_area, 5, 0, 1, 5)
+        self.scfg_grid.addWidget(QLabel("日志"), 5, 0, 1, 1)
+        self.scfg_grid.addWidget(self.log_area, 6, 0, 1, 5)
 
         # 将左侧容器和脚本配置布局添加到主布局
         self.main_layout.addWidget(self.container, 0, 0)
@@ -162,12 +176,65 @@ class PageScript(QWidget):
         self.model.progress_changed.connect(self.progress_bar.setValue)
         self.model.running_task_changed.connect(self.running_task.setText)
         self.model.connect_window_changed.connect(self.window_title.setText)
-        self.add_task_btn.clicked.connect(lambda: self.model.add_task(self.script_box.currentText()))
+        self.add_task_btn.clicked.connect(lambda: self.model.add_task(self.task_box.currentText()))
         self.script_cfg_btn.clicked.connect(lambda: self.open_script_cfg())
-        self.find_and_connect_btn.clicked.connect(lambda: self.model.connect_window())
+        self.find_window_btn.clicked.connect(lambda: self.get_window_handles())
+        self.connect_window_btn.clicked.connect(lambda: self.connect_window())
+        self.show_window_btn.clicked.connect(lambda: self.show_window(self.get_current_hwnd()))
+        self.clear_run_list_btn.clicked.connect(lambda: self.model.clear_run_list())
         logger.log_signal.connect(self.display_log_message)
 
 
+    def get_window_handles(self):
+        """
+        获取当前所有窗口的句柄并更新下拉框。
+        """
+        handles = self.model.get_target_window_handles(self.model.window_title)
+        self.hwnd_box.clear()
+        self.hwnd_box.addItems([str(hwnd) for hwnd in handles])
+
+    def connect_window(self):
+        """
+        连接到当前选中的窗口句柄。
+        """
+        if self.hwnd_box.currentText() == "无" or self.hwnd_box.currentText() == "":
+            logger.error("请选择一个窗口句柄！")
+            return
+        self.model.set_hwnd(int(self.hwnd_box.currentText()))
+        self.model.connect_window()
+    
+    def show_window(self, hwnd: int = 0):
+        """
+        显示当前连接的窗口.
+        """
+        import win32gui
+        import win32con
+        try:
+            win32gui.SetForegroundWindow(hwnd)
+
+            # 辅助步骤：如果窗口最小化了，需要先还原它才能带到最前
+            if win32gui.IsIconic(hwnd):
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+
+            # 再次确保它被激活
+            win32gui.SetForegroundWindow(hwnd)
+        except Exception as e:
+            logger.error(f"显示窗口失败，句柄：{hwnd}，{e}")
+            return
+
+    def get_current_hwnd(self) -> int:
+        """
+        获取当前选中的窗口句柄.
+        """
+        if self.hwnd_box.currentText() == "无" or self.hwnd_box.currentText() == "":
+            logger.error("请选择一个窗口句柄！")
+            return 0
+        try:
+            hwnd = int(self.hwnd_box.currentText())
+        except ValueError:
+            logger.error("当前选中的窗口句柄无效！")
+            return 0
+        return hwnd
     # ⚡ 核心槽：处理运行按钮的点击
     def _toggle_run_queue(self):
         """
@@ -188,10 +255,14 @@ class PageScript(QWidget):
             # 运行中时，可以选择禁用任务增删功能（例如禁用 Add 按钮）
             self.add_task_btn.setEnabled(False) 
             self.task_list.setEnabled(False)
+            self.connect_window_btn.setEnabled(False)
+            self.script_cfg_btn.setEnabled(False)
         else: # "未运行", "队列已完成", "发生错误"
             self.run_btn.setText("开始运行")
             # 停止时，恢复任务增删功能
             self.add_task_btn.setEnabled(True) 
             self.task_list.setEnabled(True)
+            self.connect_window_btn.setEnabled(True)
+            self.script_cfg_btn.setEnabled(True)
 
 

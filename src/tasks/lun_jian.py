@@ -51,56 +51,80 @@ class LunJian(TemplateMatchingTask):
 
     def execute_task_logic(self):
         """执行具体的任务逻辑."""
-        self.start()
+        # Note: start() 和 stop() 现在由 TemplateMatchingTask.run() 调用
+        # self.start() # <-- 移除此行
         
         # 验证模板文件
         if not self.validate_templates():
-            logger.error("模板文件验证失败，任务无法启动")
+            logger.error(f"[{self.get_task_name()}]模板文件验证失败，任务无法启动")
             return
 
         try:
             while self.running:
+                
+                # ⚡ 1. 每次循环开始时检查是否超时 ⚡
+                if self.check_timeout():
+                    return # 超时，退出任务逻辑
+                
                 matched = False
                 
                 # 遍历所有模板
                 for template_path in self.get_template_path_list():
+                    
+                    # ⚡ 1.1 每次迭代前再次检查是否超时或被外部停止 ⚡
+                    if self.check_timeout() or not self.running:
+                        return # 超时或被停止，退出任务逻辑
+                    
                     # 跳过已点击的模板
                     if template_path in self.clicked_templates:
                         continue
                     
                     # 捕获截图并匹配模板
-                    match_result = self.capture_and_match_template(template_path)
+                    match_result = self.capture_and_match_template(template_path, None)
                     if match_result is None:
-                        continue  # 捕获失败，继续下一个模板
+                        # 捕获失败，继续下一个模板
+                        # ⚡ 如果捕获失败，等待重试时检查停止/超时
+                        if self._sleep(self.capture_retry_delay):
+                            return 
+                        continue
                     
                     center, match_val = match_result
                     if center:
                         # 点击匹配到的模板
                         if self.click_template(template_path, center):
                             matched = True
-                            logger.info(f"模板 {template_path} 已处理完成")
-                            if template_path == self.TEMPLATE_PATH_LIST[-1]:
-                                print("已执行退出论剑操作，结束任务。")
-                                self.stop()
-                            break  # 找到一个匹配后跳出循环
+                            logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}")
+                            
+                            # ⚡ 立即检查是否停止，而不是等待 click_delay
+                            if "que_ding.png" in template_path:
+                                logger.info(f"[{self.get_task_name()}]已执行退出副本操作，结束任务。")
+                                self.stop() # 停止任务，退出 while 循环
+                                return 
+                            
+                            break  # 找到一个匹配后跳出 for 循环
                     else:
-                        logger.info(f"模板 {template_path} 未匹配到有效位置, 相似度:{match_val:.3f}")
-                        self._sleep(self.template_retry_delay)
+                        logger.info(f"[{self.get_task_name()}]模板 {template_path} 未匹配到有效位置, 相似度:{match_val:.3f}")
+                        # 模板匹配失败，等待重试时检查停止/超时
+                        if self._sleep(self.template_retry_delay):
+                            return
+
 
                 # 如果没有匹配到任何模板，检查是否已完成所有任务
                 if not matched:
-                    # logger.info("本轮未找到任何匹配模板")
                     if self.is_task_completed():
-                        logger.info("所有模板已处理完成，任务结束")
-                        break
+                        logger.info(f"[{self.get_task_name()}]所有模板已处理完成，任务结束")
+                        break # 完成所有模板，退出 while 循环
                 
-                # 等待下次循环
-                self._sleep(self.click_delay)
+                # 等待下次循环 (click_delay 既用于点击后的冷却，也用于未匹配到时的等待)
+                # ⚡ 每次等待时检查是否停止或超时
+                if self._sleep(self.click_delay):
+                    return # 被停止，退出任务逻辑
+                
+            logger.info(f"[{self.get_task_name()}]任务逻辑自然退出。")
 
         except KeyboardInterrupt:
-            logger.info("任务被手动停止。")
-        finally:
-            self.stop()
+            logger.info(f"[{self.get_task_name()}]任务被手动停止。")
+        return # 任务逻辑结束
 
     def start(self):
         """启动任务."""
@@ -125,10 +149,6 @@ class LunJian(TemplateMatchingTask):
         completed, total, percentage = self.get_progress()
         return f"LunJian(name={self.get_task_name()}(论剑), running={self._running}, progress={completed}/{total}({percentage:.1f}%))"
     
-    # 添加一个便捷方法来运行任务
-    def run(self):
-        """运行论剑任务."""
-        self.execute_task_logic()
 
 
 
