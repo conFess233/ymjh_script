@@ -5,25 +5,34 @@ from PySide6.QtCore import QObject, Signal
 from ..core.logger import logger
 import threading
 
-class TaskCfgModel(QObject):
+class _TaskCfgModel(QObject):
     task_cfg_updated = Signal(dict) # 任务配置更新信号，参数为新的任务配置字典
 
     _instance = None
     _lock = threading.Lock()
-        
+    
+    def __new__(cls):
+        """
+        单例模式，确保只有一个 TaskCfgModel 实例.
+        """
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self, file_path="task_config.json"):
         super().__init__()
         self.file_path = os.path.abspath(file_path)
         self.task_cfg = {
-            "window_title": "一梦江湖", # 目标窗口标题
-            "timeout": 600, # 任务超时时间（秒）
-            "loop_count": 1, # 循环次数
-            "base_window_size": (2560, 1330),       # 基准窗口大小，用于尺寸比例换算
-            "match_threshold": 0.6,        # 默认模板匹配阈值
-            "click_delay": 3,                # 点击后的默认等待时间（秒）
-            "capture_retry_delay": 2, # 捕获失败重试延迟（秒）
-            "template_retry_delay": 0.5, # 模板匹配失败重试延迟（秒）
-            "max_retry_attempts": 5, # 最大重试次数
+            "window_title": "一梦江湖",          # 目标窗口标题
+            "timeout": 600,                     # 任务超时时间（秒）
+            "loop_count": 1,                    # 循环次数
+            "base_window_size": (2560, 1330),   # 基准窗口大小，用于尺寸比例换算
+            "match_threshold": 0.6,             # 默认模板匹配阈值
+            "click_delay": 3,                   # 点击后的默认等待时间（秒）
+            "capture_retry_delay": 2,           # 捕获失败重试延迟（秒）
+            "template_retry_delay": 0.5,        # 模板匹配失败重试延迟（秒）
+            "max_retry_attempts": 5,            # 最大重试次数
         }
 
         self.load_task_cfg()
@@ -90,4 +99,4 @@ class TaskCfgModel(QObject):
         """
         return self.task_cfg.get(key, None)
 
-task_cfg_model = TaskCfgModel()
+task_cfg_model = _TaskCfgModel()

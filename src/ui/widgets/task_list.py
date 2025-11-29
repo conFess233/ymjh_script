@@ -8,7 +8,6 @@ class TaskList(QListWidget):
     任务列表组件，支持右键菜单、拖放排序，并与 TaskModel 同步。
     """
     def __init__(self, task_model, placeholder="请从右侧选择任务添加到此处"):
-        # 1. ⚡ 关键改进：保存 TaskModel 引用
         super().__init__()
         self.task_model = task_model
         self.placeholder = placeholder
@@ -48,8 +47,6 @@ class TaskList(QListWidget):
             x = 10
             y = self.height() // 2
             painter.drawText(x, y, self.placeholder)
-    
-    # ------------------ 2. 核心同步方法 ------------------
 
     def refresh_list_from_model(self):
         """
@@ -62,15 +59,15 @@ class TaskList(QListWidget):
         
         # 从 Model 中获取任务实例，并添加到 UI 列表中
         for task_instance in self.task_model.get_run_list():
-            task_name = task_instance.get_task_name() # 假设任务实例有 get_task_name()
-            # 💡 确保添加到 UI 列表的是任务名称
+            task_name = task_instance.get_task_name()
+            # 确保添加到 UI 列表的是任务名称
             item = QListWidgetItem(task_name)
             self.addItem(item)
-            
-
-    # ------------------ 3. 右键菜单操作同步 ------------------
 
     def open_menu(self, pos: QPoint):
+        """
+        打开任务列表的右键菜单，包含上移、下移、移动到顶部、移动到底部、删除操作。
+        """
         item = self.itemAt(pos)
         if not item:
             return
@@ -78,7 +75,6 @@ class TaskList(QListWidget):
         row = self.row(item)
         count = self.count()
 
-        # ... (创建菜单和执行菜单操作的代码保持不变)
         menu = QMenu(self)
         act_up = menu.addAction("上移")
         act_down = menu.addAction("下移")
@@ -91,7 +87,6 @@ class TaskList(QListWidget):
         if not action:
             return
 
-        # ⚡ 关键改进：将 UI 操作映射到 Model 的方法
         if action == act_up:
             self.move_task_action(row, row - 1)
 
@@ -112,15 +107,12 @@ class TaskList(QListWidget):
         """
         删除任务并通知 Model。
         """
-        # 1. 通知 Model 移除任务
         self.task_model.remove_task_by_index(row) 
-        # 2. UI 刷新：由于 TaskModel 会发出 run_list_changed 信号，我们只需在 refresh_list_from_model 中处理。
-        #    但为了日志和即时性，直接 takeItem 并记录日志更直观：
         self.refresh_list_from_model
 
     def move_task_action(self, old_row: int, new_row: int):
         """
-        ⚡ 关键修复：移动任务，仅通知 Model。UI 刷新由 Model 信号触发。
+        移动任务，仅通知 Model。UI 刷新由 Model 信号触发。
         """
         if old_row == new_row or new_row < 0 or new_row >= self.count():
             return
@@ -130,31 +122,21 @@ class TaskList(QListWidget):
         
         item_text = self.item(old_row).text() if self.item(old_row) else "Unknown Task"
 
-
-    # ------------------ 4. 拖放同步 (最关键) ------------------
-
+    # --- 拖放功能 目前未实现 ---
     def dropEvent(self, event):
         """
         覆盖 dropEvent，允许 QListWidget 移动 UI 元素，然后同步到 Model。
         通过在 super().dropEvent() 之前/之后使用 Model.blockSignals() 来解决冲突。
         """
         old_row = self.currentRow()
-        
-        # 1. 让 QListWidget 完成 UI 移动，同时确保 Model 不触发刷新
-        # QListWidget 的 drag/drop 操作会自动处理 UI 移动
-        # 因此，我们不应该在这里阻塞 Model 的信号，因为 super().dropEvent() 不会触发 run_list_changed。
-        # 
-        # 尝试直接调用父类 dropEvent，让它移动 UI：
+    
         super().dropEvent(event)
         
         new_row = self.row(self.currentItem())
         
         # 2. 如果 UI 确实发生了移动，则同步 Model。
         if old_row != new_row and old_row != -1:
-            # ⚡ 关键修复：在更新 Model 时，临时阻止 Model 发送 run_list_changed 信号。
-            # 否则 Model 信号会再次触发 refresh_list_from_model，重置 UI。
-            
-            # 注意：这里我们假设 Model 也有 blockSignals 方法（通常 Model 会继承 QObject）
+            # 在更新 Model 时，临时阻止 Model 发送 run_list_changed 信号。
             was_blocked = self.task_model.blockSignals(True)
             try:
                 # 更新 Model 的内部数据顺序
@@ -168,18 +150,18 @@ class TaskList(QListWidget):
         
         event.accept()
 
-    # ------------------ 5. 辅助方法，简化为调用 move_task_action ------------------
-
     def move_item_up(self, row):
+        """
+        上移任务，仅通知 Model。UI 刷新由 Model 信号触发。
+        """
         if row <= 0:
             return
         self.move_task_action(row, row - 1)
 
     def move_item_down(self, row):
+        """
+        下移任务，仅通知 Model。UI 刷新由 Model 信号触发。
+        """
         if row >= self.count() - 1:
             return
         self.move_task_action(row, row + 1)
-
-    def move_item_to(self, old_row, new_row):
-        """这个方法现在应该统一调用 move_task_action"""
-        self.move_task_action(old_row, new_row)

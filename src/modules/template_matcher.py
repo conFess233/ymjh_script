@@ -147,7 +147,7 @@ class TemplateMatcher:
             match_val = max_val
             match_loc = max_loc
 
-        print(f"模板:{self.template_path}, 匹配值: {match_val}, 匹配位置: {match_loc}")
+        # print(f"模板:{self.template_path}, 匹配值: {match_val}, 匹配位置: {match_loc}")
         # 判断阈值，排除inf值
         if match_val >= threshold and match_val != float('inf'):
             center = (match_loc[0] + tw // 2, match_loc[1] + th // 2)

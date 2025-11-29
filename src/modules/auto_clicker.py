@@ -63,7 +63,7 @@ class AutoClicker:
             return False
         try:
             self.window.click(coords=(x, y))
-            print(f"成功点击 ({x}, {y})")
+            # print(f"成功点击 ({x}, {y})")
             time.sleep(delay)
             return True
         except Exception as e:

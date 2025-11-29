@@ -1,11 +1,9 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFormLayout, QSpinBox, QComboBox, QProgressBar, QTextEdit, QScrollArea, QCheckBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFormLayout, QComboBox
 from ..models.settings_model import SettingsModel
-from PySide6.QtWidgets import QListWidget, QLineEdit, QPushButton, QFileDialog
-from PySide6.QtCore import QDir
 
 class PageSetting(QWidget):
     """
-    设置页面类，包含界面主题、字体大小、自动保存日志、自动重启脚本等设置.
+    设置页面类，包含界面主题设置.
     """
     def __init__(self, main_window):
         # 调用父类的初始化方法

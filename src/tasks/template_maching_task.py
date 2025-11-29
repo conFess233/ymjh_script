@@ -1,6 +1,6 @@
 from .task import Task
 from ..modules.auto_clicker import AutoClicker
-from ..modules.capture_window import WindowCapture
+from ..modules.window_capture import WindowCapture
 from ..modules.template_matcher import TemplateMatcher
 from abc import ABC, abstractmethod
 from time import sleep
@@ -29,34 +29,36 @@ class TemplateMatchingTask(Task):
         并设置默认的匹配参数、延迟时间以及重试机制。
 
         Args:
-            base_window_size (tuple): 基准窗口大小，用于缩放匹配区域。默认值为 (2560, 1330)。
-            match_threshold (float): 默认匹配阈值（0~1 之间），匹配得分高于该值时视为匹配成功。默认 0.6。
-            click_delay (float): 每次点击后的等待时间（秒）。默认 5 秒。
-            capture_retry_delay (float): 捕获失败后的重试延迟时间（秒）。默认 2 秒。
-            template_retry_delay (float): 模板匹配失败后的重试延迟时间（秒）。默认 0.5 秒。
-            max_retry_attempts (int): 最大重试次数。默认 3。
+            base_window_size (tuple): 基准窗口大小，用于缩放匹配区域。默认值为 (2560, 1330)，根据实际截取模板时的客户端窗口大小调整(经测试, 在2K屏幕下, 设置为2560, 1330效果较好)。
+            match_threshold (float): 默认匹配阈值（0~1 之间），匹配得分高于该值时视为匹配成功。
+            click_delay (float): 每次点击后的等待时间（秒）。
+            capture_retry_delay (float): 捕获失败后的重试延迟时间（秒）。
+            template_retry_delay (float): 模板匹配失败后的重试延迟时间（秒）。
+            max_retry_attempts (int): 最大重试次数。
         """
         # 初始化参数设置
-        self.base_window_size = config["base_window_size"]       # 基准窗口大小，用于尺寸比例换算
-        self.match_threshold = config["match_threshold"]        # 默认模板匹配阈值
-        self.click_delay = config["click_delay"]                # 点击后的默认等待时间（秒）
-        self.capture_retry_delay = config["capture_retry_delay"] # 捕获失败重试延迟（秒）
-        self.template_retry_delay = config["template_retry_delay"] # 模板匹配失败重试延迟（秒）
-        self.max_retry_attempts = config["max_retry_attempts"]  # 最大模板匹配重试次数
+        self.base_window_size = config["base_window_size"]                  # 基准窗口大小，用于尺寸比例换算
+        self.match_threshold = config["match_threshold"]                    # 默认模板匹配阈值
+        self.click_delay = config["click_delay"]                            # 点击后的默认等待时间（秒）
+        self.capture_retry_delay = config["capture_retry_delay"]            # 捕获失败重试延迟（秒）
+        self.template_retry_delay = config["template_retry_delay"]          # 模板匹配失败重试延迟（秒）
+        self.max_retry_attempts = config["max_retry_attempts"]              # 最大模板匹配重试次数
 
-        self.task_timeout = None # 任务允许的最大运行时间（秒）
-        self.start_time = None   # 任务开始运行的时间戳
-        self.template_matcher = TemplateMatcher("", self.base_window_size)
+        self.task_timeout = None                                            # 任务允许的最大运行时间（秒）
+        self.start_time = None                                              # 任务开始运行的时间戳
+        self.template_matcher = TemplateMatcher("", self.base_window_size)  # 模板匹配器实例
 
         # 状态变量
-        self._running = False                  # 当前任务运行状态标志
-        self.clicked_templates = set()         # 已点击过的模板集合，用于防止重复点击
+        self._running = False                                               # 当前任务运行状态标志
+        self.clicked_templates = set()                                      # 已点击过的模板集合，用于防止重复点击
 
-        self._stop_event = threading.Event()  # 用于停止任务的事件对象
+        self._stop_event = threading.Event()                                # 用于停止任务的事件对象
 
+
+    # --- 初始化/更新配置方法 ---
     def configure_window_access(self, wincap: WindowCapture, clicker: AutoClicker):
         """
-        实现抽象方法：接收并配置已连接的窗口访问对象。
+        接收并配置已连接的窗口访问对象。
         """
         self.window_capture = wincap
         self.auto_clicker = clicker
@@ -76,46 +78,6 @@ class TemplateMatchingTask(Task):
         self.max_retry_attempts = new_cfg["max_retry_attempts"]
         self.template_matcher.set_base_window_size(self.base_window_size)
 
-
-    @property
-    def running(self) -> bool:
-        """
-        获取任务运行状态。
-
-        Returns:
-            bool: 当前任务是否正在运行。
-        """
-        return self._running
-
-    @abstractmethod
-    def get_template_path_list(self) -> list:
-        """
-        获取模板路径列表。
-
-        Returns:
-            list: 模板图片路径的列表。
-        """
-        pass
-
-    def get_base_window_size(self) -> tuple:
-        """
-        获取基准窗口尺寸。
-
-        Returns:
-            tuple: 基准窗口尺寸 (宽度, 高度)。
-        """
-        return self.base_window_size
-
-    @abstractmethod
-    def get_task_name(self) -> str:
-        """
-        获取任务名称。
-
-        Returns:
-            str: 任务名称。
-        """
-        pass
-
     def validate_templates(self) -> bool:
         """
         验证模板文件是否存在。
@@ -132,10 +94,11 @@ class TemplateMatchingTask(Task):
                 missing_templates.append(template_path)
         
         if missing_templates:
-            print(f"错误：以下模板文件不存在: {missing_templates}")
+            logger.error(f"错误：以下模板文件不存在: {missing_templates}")
             return False
         return True
 
+    # --- 截图/模板匹配/点击方法 ---
     def capture_screenshot(self) -> Optional[np.ndarray]:
         """
         捕获窗口截图。
@@ -148,23 +111,10 @@ class TemplateMatchingTask(Task):
         """
         screenshot = self.window_capture.capture()
         if screenshot is None:
-            print("无法捕获窗口图像，稍后重试...")
+            logger.error("无法捕获窗口图像，稍后重试...")
             self._sleep(self.capture_retry_delay)
             return None
         return screenshot
-
-    def get_screenshot_size(self, screenshot: np.ndarray) -> Tuple[int, int]:
-        """
-        获取截图尺寸。
-
-        Args:
-            screenshot (np.ndarray): 截图图像。
-
-        Returns:
-            Tuple[int, int]: 截图的宽度和高度。
-        """
-        screenshot_h, screenshot_w = screenshot.shape[:2]
-        return (screenshot_w, screenshot_h)
 
     def match_template(self, screenshot: np.ndarray, template_path: str, 
                     screenshot_size: Optional[Tuple[int, ...]] = None) -> Optional[Tuple[Tuple[int, int], float]]:
@@ -319,6 +269,7 @@ class TemplateMatchingTask(Task):
             return False
 
 
+    # --- 辅助方法 ---
     def _sleep(self, delay: float) -> bool:
             """
             使用 Event.wait 代替 time.sleep 实现非阻塞延迟。
@@ -338,28 +289,7 @@ class TemplateMatchingTask(Task):
         self.clicked_templates.clear()
         print("已重置点击记录")
 
-    def is_task_completed(self) -> bool:
-        """
-        检查任务是否完成。
-
-        Returns:
-            bool: 若所有模板均已点击则返回 True，否则返回 False。
-        """
-        total_templates = len(self.get_template_path_list())
-        return len(self.clicked_templates) >= total_templates
-
-    def get_progress(self) -> tuple:
-        """
-        获取任务进度。
-
-        Returns:
-            tuple(int, int, float): (已点击数量, 总数量, 完成百分比)。
-        """
-        total = len(self.get_template_path_list())
-        completed = len(self.clicked_templates)
-        percentage = (completed / total) * 100 if total > 0 else 0
-        return completed, total, percentage
-
+    # --- 任务控制方法 ---
     def start(self):
         """
         启动任务。
@@ -393,6 +323,85 @@ class TemplateMatchingTask(Task):
         子类必须实现此方法来定义任务执行流程。
         """
         pass
+
+    def check_timeout(self) -> bool:
+        """
+        检查任务是否已超时。
+
+        Returns:
+            bool: 如果超时或未设置 timeout，返回 True；否则返回 False。
+        """
+        if self.task_timeout is None or self.start_time is None:
+            return False # 如果没有设置超时，则不中断
+            
+        if (time.time() - self.start_time) > self.task_timeout:
+            logger.warning(f"任务 {self.get_task_name()} 已超时 ({self.task_timeout} 秒)，正在停止。")
+            self.stop()
+            return True
+        return False
+
+    def run(self):
+            """
+            任务主入口，在执行具体逻辑前记录开始时间。
+            """
+            self.start() # 调用 start() 设置 _running = True
+            self.start_time = time.time() # 记录任务开始时间
+            try:
+                self.execute_task_logic()
+            except Exception as e:
+                logger.error(f"任务 {self.get_task_name()} 执行逻辑出错: {e}")
+            finally:
+                self.stop() # 确保任务结束时调用 stop()
+
+
+    # --- getters/setters ---
+
+    @property
+    def running(self) -> bool:
+        """
+        获取任务运行状态。
+        该属性只读，外部无法直接修改任务运行状态。
+
+        Returns:
+            bool: 当前任务是否正在运行。
+        """
+        return self._running
+    @abstractmethod
+
+    def get_template_path_list(self) -> list:
+        """
+        获取模板路径列表。
+        子类需实现此方法，返回模板图片路径的列表。
+
+        Returns:
+            list: 模板图片路径的列表。
+        """
+        pass
+
+    @abstractmethod
+    def get_task_name(self) -> str:
+        """
+        获取任务名称。
+        子类需实现此方法，返回任务的名称。
+
+        Returns:
+            str: 任务名称。
+        """
+        pass
+    def get_base_window_size(self) -> tuple:
+        """
+        获取基准窗口尺寸。
+
+        Returns:
+            tuple: 基准窗口尺寸 (宽度, 高度)。
+        """
+        return self.base_window_size
+
+    def set_timeout(self, timeout: float):
+        """
+        设置任务允许的最大运行时间。
+        """
+        self.task_timeout = timeout
 
     def set_default_base_window_size(self, base_window_size: tuple):
         """
@@ -448,7 +457,7 @@ class TemplateMatchingTask(Task):
         """
         self.max_retry_attempts = max_attempts
 
-    def set_all_defaults(self, base_window_size: tuple, threshold: float, click_delay: float, capture_delay: float, template_delay: float, max_attempts: int):
+    def set_all_config(self, base_window_size: tuple, threshold: float, click_delay: float, capture_delay: float, template_delay: float, max_attempts: int):
         """
         设置所有默认参数。
 
@@ -466,7 +475,42 @@ class TemplateMatchingTask(Task):
         self.set_capture_retry_delay(capture_delay)
         self.set_template_retry_delay(template_delay)
         self.set_default_max_retry_attempts(max_attempts)
+
+    def get_progress(self) -> tuple:
+        """
+        获取任务进度。
+
+        Returns:
+            tuple(int, int, float): (已点击数量, 总数量, 完成百分比)。
+        """
+        total = len(self.get_template_path_list())
+        completed = len(self.clicked_templates)
+        percentage = (completed / total) * 100 if total > 0 else 0
+        return completed, total, percentage
         
+    def get_screenshot_size(self, screenshot: np.ndarray) -> Tuple[int, int]:
+        """
+        获取截图尺寸。
+
+        Args:
+            screenshot (np.ndarray): 截图图像。
+
+        Returns:
+            Tuple[int, int]: 截图的宽度和高度。
+        """
+        screenshot_h, screenshot_w = screenshot.shape[:2]
+        return (screenshot_w, screenshot_h)
+    
+    def is_task_completed(self) -> bool:
+        """
+        检查任务是否完成。
+
+        Returns:
+            bool: 若所有模板均已点击则返回 True，否则返回 False。
+        """
+        total_templates = len(self.get_template_path_list())
+        return len(self.clicked_templates) >= total_templates
+
     def __str__(self) -> str:
         """
         返回任务对象的字符串表示形式。
@@ -476,48 +520,3 @@ class TemplateMatchingTask(Task):
         """
         completed, total, percentage = self.get_progress()
         return f"{self.__class__.__name__}(name={self.get_task_name()}, running={self._running}, progress={completed}/{total}({percentage:.1f}%))"
-    
-    
-    def log(self, message: str):
-        """
-        记录任务相关信息。
-
-        Args:
-            message (str): 要记录的信息。
-        """
-        pass 
-
-    def set_timeout(self, timeout: float):
-        """
-        设置任务允许的最大运行时间。
-        """
-        self.task_timeout = timeout
-        
-    def check_timeout(self) -> bool:
-        """
-        检查任务是否已超时。
-
-        Returns:
-            bool: 如果超时或未设置 timeout，返回 True；否则返回 False。
-        """
-        if self.task_timeout is None or self.start_time is None:
-            return False # 如果没有设置超时，则不中断
-            
-        if (time.time() - self.start_time) > self.task_timeout:
-            logger.warning(f"任务 {self.get_task_name()} 已超时 ({self.task_timeout} 秒)，正在停止。")
-            self.stop()
-            return True
-        return False
-
-    def run(self):
-            """
-            任务主入口，在执行具体逻辑前记录开始时间。
-            """
-            self.start() # 调用 start() 设置 _running = True
-            self.start_time = time.time() # 记录任务开始时间
-            try:
-                self.execute_task_logic()
-            except Exception as e:
-                logger.error(f"任务 {self.get_task_name()} 执行逻辑出错: {e}")
-            finally:
-                self.stop() # 确保任务结束时调用 stop()

@@ -1,7 +1,5 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QTextBrowser
-from PySide6.QtGui import QPalette
-# from PySide6.QtWebEngineWidgets import QWebEngineView  # 不再需要
 import markdown
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QTextBrowser
 from ..core.theme_manager import theme_manager
 
 class PageDir(QWidget):
@@ -11,29 +9,31 @@ class PageDir(QWidget):
     """
     def __init__(self):
         super().__init__()
-        self.filepath = "src/ui/pages/README.md"
-        # 替换为 QTextBrowser
-        self.text_browser = QTextBrowser() 
-        # 设置 QTextBrowser 阻止外部链接自动打开，如果有需要
-        self.text_browser.setOpenExternalLinks(True) 
+        self.filepath = "directions.md"               # 使用说明文件路径
+        self.text_browser = QTextBrowser()              # 目录页面文本浏览器
+        self.text_browser.setOpenExternalLinks(True)    # 允许打开外部链接
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
-        # 添加 QTextBrowser 控件
+
         layout.addWidget(self.text_browser)
         theme_manager.theme_changed.connect(self.reload_content_on_theme_change)
         
         self.load_markdown_file(self.filepath)
 
     def load_markdown(self, md_text: str):
+        """
+        加载 Markdown 文本并应用当前主题样式。
+        
+        Args:
+            md_text (str): Markdown 格式的文本.
+        """
         current_theme = theme_manager.current_theme
         
-        # 2. 从字典中提取所需颜色
-        # 确保这些 key (@window_bg, @text, @base) 在你的 themes.py 中存在
+        # 从字典中提取所需颜色
         bg_color = current_theme.get("window_bg", "#FFFFFF") 
         fg_color = current_theme.get("text", "#000000")
-        # *******************
 
         html = markdown.markdown(md_text, extensions=['fenced_code', 'tables'])
 
@@ -84,7 +84,8 @@ class PageDir(QWidget):
             self.load_markdown(f"**错误：文件未找到。**\n\n请确保路径 `{filepath}` 正确。")
 
     def reload_content_on_theme_change(self, new_theme_colors: dict):
-        """接收到主题变更信号后，重新加载文件内容，触发 load_markdown。"""
-        # 注意：这里我们不需要 new_theme_colors，因为 load_markdown_file 会重新读取并调用 load_markdown
+        """
+        接收到主题变更信号后，重新加载文件内容，触发 load_markdown。
+        """
         # load_markdown_file -> load_markdown -> setHtml(新的颜色)
         self.load_markdown_file(self.filepath)

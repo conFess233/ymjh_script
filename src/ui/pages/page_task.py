@@ -1,6 +1,4 @@
-from PySide6.QtWidgets import QWidget, QGridLayout, QLabel, QFormLayout, QSpinBox, QComboBox, QProgressBar, QTextEdit, QScrollArea, QListWidget, QHBoxLayout, QVBoxLayout, QDialog, QPushButton
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QListWidgetItem
+from PySide6.QtWidgets import QWidget, QGridLayout, QLabel, QComboBox, QProgressBar, QTextEdit, QVBoxLayout, QPushButton
 from ..models.task_model import TaskModel
 from ..widgets.task_list import TaskList
 from .script_cfg_window import ScriptCfgWindow
@@ -42,9 +40,11 @@ class PageScript(QWidget):
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("font-weight: bold; color: #2ecc71;")
         self.update_status()
+
         # 创建当前运行任务标签及内容标签，并设置样式
         self.running_task = QLabel("")
         self.running_task.setStyleSheet("font-weight: bold; color: #2ecc71;")
+
         # 创建当前窗口标签及内容标签，并设置样式
         self.window_title = QLabel("无")
         self.window_title.setStyleSheet("font-weight: bold; color: #2ecc71;")
@@ -103,7 +103,6 @@ class PageScript(QWidget):
         self.scfg_grid.addWidget(QLabel("当前运行任务:"), 3, 2, 1, 1)
         self.scfg_grid.addWidget(self.running_task, 3, 3, 1, 1)
         self.scfg_grid.addWidget(self.progress_bar, 4, 0, 1, 5)
-
         self.scfg_grid.addWidget(QLabel("日志"), 5, 0, 1, 1)
         self.scfg_grid.addWidget(self.log_area, 6, 0, 1, 5)
 
@@ -111,7 +110,7 @@ class PageScript(QWidget):
         self.main_layout.addWidget(self.container, 0, 0)
         self.main_layout.addLayout(self.scfg_grid, 0, 1)
 
-        self._setup_connections()
+        self._setup_connections() # 连接信号与槽
 
     def update_status(self):
         """
@@ -137,7 +136,7 @@ class PageScript(QWidget):
             # 橙色
             return "orange"
         elif log_type == "INFO":
-            # 默认颜色（例如：蓝色或黑色）
+            # 默认颜色
             if theme_manager.is_dark_theme():
                 return "white"
             else:
@@ -148,30 +147,31 @@ class PageScript(QWidget):
 
     def display_log_message(self, message: str, log_type: str):
         """
-        槽函数：接收日志并以不同的颜色显示。
+        接收日志并以不同的颜色显示。
         """
         color = self.get_color_for_type(log_type)
         
-        # 1. 使用 HTML 格式化文本
+        # 使用 HTML 格式化文本
         html_message = f'<span style="color: {color};">{message}</span>'
         
-        # 2. 将 HTML 文本追加到 QTextEdit
-        # 注意：使用 append 会在新行追加，并渲染 HTML
+        # 将 HTML 文本追加到 QTextEdit
         self.log_area.append(html_message)
         
-        # 3. 滚动到底部
+        # 滚动到底部
         self.log_area.ensureCursorVisible()
 
     
     def _setup_connections(self):
-        """连接所有信号与槽."""
+        """
+        连接所有信号与槽.
+        """
         # 连接运行按钮到切换运行状态的方法
         self.run_btn.clicked.connect(self._toggle_run_queue)
         
         # 连接 Model 的状态变化信号到 UI 更新方法
         self.model.status_changed.connect(self.update_run_button_state)
         
-        # ... (其他信号连接，如更新状态标签、日志等) ...
+        # 其他信号连接，如更新状态标签、日志等
         self.model.status_changed.connect(self.update_status)
         self.model.progress_changed.connect(self.progress_bar.setValue)
         self.model.running_task_changed.connect(self.running_task.setText)
@@ -257,6 +257,7 @@ class PageScript(QWidget):
             self.task_list.setEnabled(False)
             self.connect_window_btn.setEnabled(False)
             self.script_cfg_btn.setEnabled(False)
+            self.find_window_btn.setEnabled(False)
         else: # "未运行", "队列已完成", "发生错误"
             self.run_btn.setText("开始运行")
             # 停止时，恢复任务增删功能
@@ -264,5 +265,6 @@ class PageScript(QWidget):
             self.task_list.setEnabled(True)
             self.connect_window_btn.setEnabled(True)
             self.script_cfg_btn.setEnabled(True)
+            self.find_window_btn.setEnabled(True)
 
 

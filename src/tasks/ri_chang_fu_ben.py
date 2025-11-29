@@ -61,7 +61,7 @@ class RiChangFuBen(TemplateMatchingTask):
         
         try:
             while self.running:
-                # ⚡ 1. 每次循环开始时检查是否超时 ⚡
+                # 每次循环开始时检查是否超时
                 if self.check_timeout():
                     return # 超时，退出任务逻辑
                 
@@ -70,7 +70,7 @@ class RiChangFuBen(TemplateMatchingTask):
                 # 遍历所有模板
                 for template_path in self.get_template_path_list():
                     
-                    # ⚡ 1.1 每次迭代前再次检查是否超时或被外部停止 ⚡
+                    # 每次迭代前再次检查是否超时或被外部停止
                     if self.check_timeout() or not self.running:
                         return # 超时或被停止，退出任务逻辑
                     
@@ -96,7 +96,7 @@ class RiChangFuBen(TemplateMatchingTask):
                             matched = True
                             logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}")
                             
-                            # ⚡ 立即检查是否停止，而不是等待 click_delay
+                            # 若提前点击退本按钮，直接退出任务
                             if "tui_ben_tui_dui.png" in template_path:
                                 logger.info(f"[{self.get_task_name()}]已执行退出副本操作，结束任务。")
                                 self.stop() # 停止任务，退出 while 循环
@@ -118,7 +118,7 @@ class RiChangFuBen(TemplateMatchingTask):
                         break # 完成所有模板，退出 while 循环
                 
                 # 等待下次循环 
-                # ⚡ 每次等待时检查是否停止或超时
+                # 每次等待时检查是否停止或超时
                 if self._sleep(self.template_retry_delay):
                     return # 被停止，退出任务逻辑
                 
@@ -135,8 +135,6 @@ class RiChangFuBen(TemplateMatchingTask):
             self._stop_event.clear()  # 确保事件未被设置
             self.clicked_templates.clear()  # 启动时清空点击记录
             logger.info(f"[{self.get_task_name()}]任务已启动")
-        else:
-            logger.info(f"[{self.get_task_name()}]任务已经在运行")
 
     def stop(self):
         """停止任务."""
@@ -145,8 +143,6 @@ class RiChangFuBen(TemplateMatchingTask):
             self.clicked_templates.clear()  # 停止时清空点击记录
             self._stop_event.set()  # 设置事件，通知任务停止
             logger.info(f"[{self.get_task_name()}]任务已停止")
-        else:
-            logger.info(f"[{self.get_task_name()}]任务未在运行")
 
     def __str__(self):
         """返回任务的字符串表示."""

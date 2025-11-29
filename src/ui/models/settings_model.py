@@ -74,13 +74,13 @@ class SettingsModel(QObject):
         self.save_settings()
         self.apply_theme()    
             
-    def get_settings(self):
+    def get_settings(self) -> dict:
         """
         获取当前设置.
         """
         return self.settings
         
-    def get_current_theme(self):
+    def get_current_theme(self) -> str:
         """
         获取当前设置的主题.
         """

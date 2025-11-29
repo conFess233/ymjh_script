@@ -4,6 +4,10 @@ from PySide6.QtCore import QObject, Signal
 from .themes import LIGHT_THEME, DARK_THEME 
 
 class ThemeManager(QObject):
+    """
+    主题管理类。
+    负责管理应用的主题切换和应用。
+    """
     theme_changed = Signal(dict)
 
     def __init__(self):
@@ -53,8 +57,13 @@ class ThemeManager(QObject):
         except FileNotFoundError:
             print(f"错误: 找不到样式文件 -> {self.template_path}")
 
-    def _generate_qss(self):
-        """读取文件内容 -> 替换变量 -> 返回最终字符串"""
+    def _generate_qss(self) -> str:
+        """
+        生成QSS样式字符串。
+
+        Returns:
+            str: 生成的QSS样式字符串。
+        """
         
         # 3. 读取外部文件内容
         with open(self.template_path, 'r', encoding='utf-8') as f:
@@ -69,10 +78,16 @@ class ThemeManager(QObject):
             
         return style_content
     
-    def get_current_theme(self):
+    def get_current_theme(self) -> dict:
+        """
+        获取当前主题.
+        """
         return self.current_theme
     
-    def is_dark_theme(self):
+    def is_dark_theme(self) -> bool:
+        """
+        判断是否为暗黑主题.
+        """
         return self.is_dark
 
 # 实例化

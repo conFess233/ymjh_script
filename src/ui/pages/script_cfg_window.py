@@ -1,5 +1,4 @@
-from PySide6.QtWidgets import QDialog, QLabel, QVBoxLayout, QPushButton, QSpinBox, QDoubleSpinBox, QGridLayout, QLineEdit, QFileDialog, QWidget
-from PySide6.QtCore import QTimer, Qt, QDir
+from PySide6.QtWidgets import QDialog, QLabel, QPushButton, QSpinBox, QDoubleSpinBox, QGridLayout, QLineEdit
 from ..models.task_cfg_model import task_cfg_model
 
 class ScriptCfgWindow(QDialog):
@@ -23,29 +22,29 @@ class ScriptCfgWindow(QDialog):
         accept_btn = QPushButton("确定")
         accept_btn.clicked.connect(self.apply_task_cfg)
         # 创建各项配置标签
-        self.window_title = QLabel("目标窗口标题：")                           # 目标窗口标题
-        self.base_window_size = QLabel("基准窗口大小：")                           # 基准窗口大小，用于尺寸比例换算
-        self.match_threshold = QLabel("模板匹配阈值(0.1-1.0):")        # 模板匹配阈值
-        self.click_delay = QLabel("点击后的等待时间(秒):")              # 点击后的等待时间（秒）
+        self.window_title = QLabel("目标窗口标题：")                        # 目标窗口标题
+        self.base_window_size = QLabel("基准窗口大小：")                    # 基准窗口大小，用于尺寸比例换算
+        self.match_threshold = QLabel("模板匹配阈值(0.1-1.0):")             # 模板匹配阈值
+        self.click_delay = QLabel("点击后的等待时间(秒):")                  # 点击后的等待时间（秒）
         self.capture_retry_delay = QLabel("捕获失败重试延迟(秒):")          # 捕获失败重试延迟（秒）
         self.template_retry_delay = QLabel("模板匹配失败重试延迟(秒):")     # 模板匹配失败重试延迟（秒）
         self.max_retry_attempts = QLabel("最大模板匹配重试次数：")          # 最大模板匹配重试次数
-        self.loop_count = QLabel("循环次数：")                            # 循环次数
-        self.timeout = QLabel("任务超时时间(秒):")                            # 任务超时时间（秒）
+        self.loop_count = QLabel("循环次数：")                              # 循环次数
+        self.timeout = QLabel("任务超时时间(秒):")                          # 任务超时时间（秒）
 
         # 创建目标窗口标题输入框，默认"一梦江湖"
         self.window_title_input = QLineEdit()
         self.window_title_input.setText("一梦江湖")
         
-        # 创建基准窗口宽度输入框，范围1-10000，步长100，默认2560
+        # 创建基准窗口宽度输入框，范围1-10000，步长10，默认2560
         self.bws_width_input = QSpinBox()
         self.bws_width_input.setRange(1, 10000)
-        self.bws_width_input.setSingleStep(100)
+        self.bws_width_input.setSingleStep(10)
         self.bws_width_input.setValue(2560)
-        # 创建基准窗口高度输入框，范围1-10000，步长100，默认1440
+        # 创建基准窗口高度输入框，范围1-10000，步长10，默认1440
         self.bws_height_input = QSpinBox()
         self.bws_height_input.setRange(1, 10000)
-        self.bws_height_input.setSingleStep(100)
+        self.bws_height_input.setSingleStep(10)
         self.bws_height_input.setValue(1440)
 
         # 创建默认模板匹配阈值输入框，范围0.1-1.0，步长0.1，默认0.6
@@ -54,19 +53,19 @@ class ScriptCfgWindow(QDialog):
         self.mt_input.setSingleStep(0.05)
         self.mt_input.setValue(0.6)
 
-        # 创建点击后等待时间输入框，范围0-10，步长1，默认3
+        # 创建点击后等待时间输入框，范围0.1-10.0，步长0.1，默认3.0
         self.cd_input = QDoubleSpinBox()
-        self.cd_input.setRange(1, 10)
+        self.cd_input.setRange(0.1, 10.0)
         self.cd_input.setSingleStep(0.5)
-        self.cd_input.setValue(3)
+        self.cd_input.setValue(3.0)
 
-        # 创建捕获失败重试延迟输入框，范围0-10，步长1，默认3
-        self.crd_input = QSpinBox()
-        self.crd_input.setRange(1, 10)
-        self.crd_input.setSingleStep(1)
-        self.crd_input.setValue(3)
+        # 创建捕获失败重试延迟输入框，范围0.1-10.0，步长0.1，默认3.0
+        self.crd_input = QDoubleSpinBox()
+        self.crd_input.setRange(0.1, 10.0)
+        self.crd_input.setSingleStep(0.5)
+        self.crd_input.setValue(3.0)
 
-        # 创建模板匹配失败重试延迟输入框，范围0-10，步长1，默认3
+        # 创建模板匹配失败重试延迟输入框，范围0.1-10.0，步长0.1，默认0.5
         self.trd_input = QDoubleSpinBox()
         self.trd_input.setRange(0.1, 10.0)
         self.trd_input.setSingleStep(0.1)
