@@ -1,4 +1,5 @@
 import os
+import sys
 from PySide6.QtCore import QObject, Signal
 # 导入你的颜色定义
 from .themes import LIGHT_THEME, DARK_THEME 
@@ -15,16 +16,28 @@ class ThemeManager(QObject):
         self.is_dark = False
         self.current_theme = LIGHT_THEME
         
-        # 模板文件路径
-        current_dir = os.path.dirname(os.path.abspath(__file__))
+        self.template_path = self.get_resource_path('styles.qss.template')
+
+    def get_resource_path(self, relative_path):
+        """
+        获取资源文件的绝对路径。
+        如果程序是打包后的，使用 sys._MEIPASS 临时路径；
+        否则，使用程序运行时的当前路径。
+        """
+        if getattr(sys, 'frozen', False):
+            # 如果程序被打包 (frozen)，资源在 sys._MEIPASS (临时文件夹) 中
+            base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+        else:
+            # 如果程序未打包，资源在脚本所在的目录下
+            base_path = os.path.dirname(os.path.abspath(__file__))
         
-        self.template_path = os.path.join(current_dir, 'styles.qss.template')
+        return os.path.join(base_path, relative_path)
 
     def toggle_theme(self):
         self.is_dark = not self.is_dark
         self.current_theme = DARK_THEME if self.is_dark else LIGHT_THEME
         
-        # 2. 读取文件并生成样式
+        # 读取文件并生成样式
         try:
             qss = self._generate_qss()
             
@@ -65,11 +78,11 @@ class ThemeManager(QObject):
             str: 生成的QSS样式字符串。
         """
         
-        # 3. 读取外部文件内容
+        # 读取外部文件内容
         with open(self.template_path, 'r', encoding='utf-8') as f:
             style_content = f.read()
             
-        # 4. 执行替换 (记得加上你之前的排序修复！)
+        # 执行替换
         sorted_keys = sorted(self.current_theme.keys(), key=len, reverse=True)
         
         for key in sorted_keys:

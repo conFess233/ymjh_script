@@ -1,5 +1,5 @@
 from src.modules.template_matcher import TemplateMatcher
-from src.modules.capture_window import WindowCapture
+from src.modules.window_capture import WindowCapture
 import win32gui
 import numpy as np
 import cv2
@@ -8,8 +8,9 @@ if __name__ == "__main__":
     capture = WindowCapture()
     hwnd = win32gui.FindWindow(None, "一梦江湖")
     capture.set_hwnd(hwnd)
-    template_path = "template_img/ri_chang_fu_ben_tui_chu.png"
-    screenshot = capture.capture()
+    template_path = "template_img/jiang_hu_ji_shi_1.png"
+    # screenshot = capture.capture()
+    screenshot = cv2.imread("template_img/555.png")
     matcher = TemplateMatcher(template_path=template_path, base_window_size=(2560, 1330))
     matcher.set_template(template_path)
     # 加载截图

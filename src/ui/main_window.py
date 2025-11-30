@@ -1,6 +1,4 @@
 import sys
-import os
-
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QPushButton, QStackedLayout
@@ -20,7 +18,6 @@ class MainWindow(QMainWindow):
         # 检查管理员权限
         if not self.is_admin():
             if not self.show_admin_warning():
-                self.close()
                 exit(1)
         self.setWindowTitle("YMJH Script")
         self.setGeometry(200, 100, 1200, 800)

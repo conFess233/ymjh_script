@@ -27,8 +27,8 @@ class ScriptCfgWindow(QDialog):
         self.match_threshold = QLabel("模板匹配阈值(0.1-1.0):")             # 模板匹配阈值
         self.click_delay = QLabel("点击后的等待时间(秒):")                  # 点击后的等待时间（秒）
         self.capture_retry_delay = QLabel("捕获失败重试延迟(秒):")          # 捕获失败重试延迟（秒）
-        self.template_retry_delay = QLabel("模板匹配失败重试延迟(秒):")     # 模板匹配失败重试延迟（秒）
-        self.max_retry_attempts = QLabel("最大模板匹配重试次数：")          # 最大模板匹配重试次数
+        self.template_retry_delay = QLabel("模板匹配失败重试延迟(秒):")      # 模板匹配失败重试延迟（秒）
+        self.match_loop_delay = QLabel("模板匹配循环等待时间(秒):")          # 模板匹配循环等待时间（秒）
         self.loop_count = QLabel("循环次数：")                              # 循环次数
         self.timeout = QLabel("任务超时时间(秒):")                          # 任务超时时间（秒）
 
@@ -65,17 +65,17 @@ class ScriptCfgWindow(QDialog):
         self.crd_input.setSingleStep(0.5)
         self.crd_input.setValue(3.0)
 
-        # 创建模板匹配失败重试延迟输入框，范围0.1-10.0，步长0.1，默认0.5
+        # 创建模板匹配失败重试延迟输入框，范围0.1-10.0，步长0.1，默认0.1
         self.trd_input = QDoubleSpinBox()
         self.trd_input.setRange(0.1, 10.0)
         self.trd_input.setSingleStep(0.1)
         self.trd_input.setValue(0.5)
 
-        # 创建最大模板匹配重试次数输入框，范围0-10，步长1，默认3
-        self.mra_input = QSpinBox()
-        self.mra_input.setRange(1, 10)
-        self.mra_input.setSingleStep(1)
-        self.mra_input.setValue(3)
+        # 创建模板匹配循环等待时间输入框，范围0.1-10.0，步长0.1，默认1.0
+        self.mld_input = QDoubleSpinBox()
+        self.mld_input.setRange(0.1, 10.0)
+        self.mld_input.setSingleStep(0.5)
+        self.mld_input.setValue(2.0)
 
         # 创建循环次数输入框，范围1-10000，步长1，默认1
         self.loop_count_input = QSpinBox()
@@ -106,8 +106,8 @@ class ScriptCfgWindow(QDialog):
         self.main_layout.addWidget(self.template_retry_delay, 4, 0)
         self.main_layout.addWidget(self.trd_input, 4, 1, 1, 2)
 
-        self.main_layout.addWidget(self.max_retry_attempts, 5, 0)
-        self.main_layout.addWidget(self.mra_input, 5, 1, 1, 2)
+        self.main_layout.addWidget(self.match_loop_delay, 5, 0)
+        self.main_layout.addWidget(self.mld_input, 5, 1, 1, 2)
 
         self.main_layout.addWidget(self.loop_count, 6, 0)
         self.main_layout.addWidget(self.loop_count_input, 6, 1, 1, 2)
@@ -135,7 +135,7 @@ class ScriptCfgWindow(QDialog):
         self.cd_input.setValue(task_cfg["click_delay"])
         self.crd_input.setValue(task_cfg["capture_retry_delay"])
         self.trd_input.setValue(task_cfg["template_retry_delay"])
-        self.mra_input.setValue(task_cfg["max_retry_attempts"])
+        self.mld_input.setValue(task_cfg["match_loop_delay"])
         self.loop_count_input.setValue(task_cfg["loop_count"])
         self.timeout_input.setValue(task_cfg["timeout"])
     
@@ -150,7 +150,7 @@ class ScriptCfgWindow(QDialog):
             "click_delay": self.cd_input.value(),
             "capture_retry_delay": self.crd_input.value(),
             "template_retry_delay": self.trd_input.value(),
-            "max_retry_attempts": self.mra_input.value(),
+            "match_loop_delay": self.mld_input.value(),
             "loop_count": self.loop_count_input.value(),
             "timeout": self.timeout_input.value(),
         })

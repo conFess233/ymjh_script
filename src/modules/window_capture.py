@@ -3,7 +3,7 @@ from ctypes import windll
 import win32gui
 import win32ui
 import numpy as np
-import cv2
+from cv2 import cvtColor, COLOR_BGRA2BGR, imwrite
 import os
 
 
@@ -95,7 +95,7 @@ class WindowCapture:
         # 将字节流转换为 numpy 数组（BGRX → BGR）
         img = np.frombuffer(bmpstr, dtype=np.uint8)
         img = img.reshape((h, w, 4))       # 4通道：B, G, R, X
-        frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+        frame = cvtColor(img, COLOR_BGRA2BGR)
 
         # 清理资源
         win32gui.DeleteObject(saveBitMap.GetHandle())
@@ -139,7 +139,7 @@ class WindowCapture:
             print("当前没有缓存画面")
             return False
 
-        cv2.imwrite(filename, self.cache)
+        imwrite(filename, self.cache)
         print(f"已保存缓存画面：{os.path.abspath(filename)}")
         return True
 

@@ -1,8 +1,4 @@
 from .template_maching_task import TemplateMatchingTask
-from time import time
-import os
-from typing import Optional, Tuple
-from pathlib import Path
 from ..ui.core.logger import logger
 
 class RiChangFuBen(TemplateMatchingTask):
@@ -19,7 +15,7 @@ class RiChangFuBen(TemplateMatchingTask):
         "template_img/huo_dong_hong_dian.png",
         "template_img/jiang_hu.png",
         "template_img/jiang_hu_ji_shi.png",
-        "template_img/ri_chang.png",
+        "template_img/jiang_hu_ji_shi_1.png",
         "template_img/tiao_zhan.png",
         "template_img/que_ren.png",
         "template_img/dan_ren_tiao_zhan.png",
@@ -96,6 +92,16 @@ class RiChangFuBen(TemplateMatchingTask):
                             matched = True
                             logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}")
                             
+                            # 特殊模板处理
+                            if template_path in ["template_img/huo_dong.png", "template_img/huo_dong_hong_dian.png"]:
+                                self.clicked_templates.update(["template_img/huo_dong.png", "template_img/huo_dong_hong_dian.png"])
+                            elif template_path in ["template_img/jiang_hu_ji_shi.png", "template_img/jiang_hu_ji_shi_1.png"]:
+                                self.clicked_templates.update(["template_img/jiang_hu_ji_shi.png", "template_img/jiang_hu_ji_shi_1.png"])
+                                
+                            if "ri_chang_fu_ben_jie_shu.png" in template_path:
+                                self._sleep(1)
+                                self.auto_clicker.click(center[0], center[1])
+
                             # 若提前点击退本按钮，直接退出任务
                             if "tui_ben_tui_dui.png" in template_path:
                                 logger.info(f"[{self.get_task_name()}]已执行退出副本操作，结束任务。")
@@ -119,7 +125,7 @@ class RiChangFuBen(TemplateMatchingTask):
                 
                 # 等待下次循环 
                 # 每次等待时检查是否停止或超时
-                if self._sleep(self.template_retry_delay):
+                if self._sleep(self.match_loop_delay):
                     return # 被停止，退出任务逻辑
                 
             logger.info(f"[{self.get_task_name()}]任务逻辑自然退出。")

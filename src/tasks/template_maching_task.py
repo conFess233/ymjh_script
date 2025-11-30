@@ -2,14 +2,13 @@ from .task import Task
 from ..modules.auto_clicker import AutoClicker
 from ..modules.window_capture import WindowCapture
 from ..modules.template_matcher import TemplateMatcher
-from abc import ABC, abstractmethod
-from time import sleep
-from typing import Optional, Tuple, Union
+from abc import abstractmethod
+from typing import Optional, Tuple
 import os
 import numpy as np
 import threading
-from ..ui.core.logger import logger
 import time
+from ..ui.core.logger import logger
 
 class TemplateMatchingTask(Task):
     """
@@ -34,7 +33,7 @@ class TemplateMatchingTask(Task):
             click_delay (float): 每次点击后的等待时间（秒）。
             capture_retry_delay (float): 捕获失败后的重试延迟时间（秒）。
             template_retry_delay (float): 模板匹配失败后的重试延迟时间（秒）。
-            max_retry_attempts (int): 最大重试次数。
+            match_loop_delay (float): 模板匹配循环延迟（秒）。
         """
         # 初始化参数设置
         self.base_window_size = config["base_window_size"]                  # 基准窗口大小，用于尺寸比例换算
@@ -42,7 +41,7 @@ class TemplateMatchingTask(Task):
         self.click_delay = config["click_delay"]                            # 点击后的默认等待时间（秒）
         self.capture_retry_delay = config["capture_retry_delay"]            # 捕获失败重试延迟（秒）
         self.template_retry_delay = config["template_retry_delay"]          # 模板匹配失败重试延迟（秒）
-        self.max_retry_attempts = config["max_retry_attempts"]              # 最大模板匹配重试次数
+        self.max_retry_attempts = config["match_loop_delay"]                # 模板匹配循环延迟（秒）
 
         self.task_timeout = None                                            # 任务允许的最大运行时间（秒）
         self.start_time = None                                              # 任务开始运行的时间戳
@@ -75,7 +74,7 @@ class TemplateMatchingTask(Task):
         self.click_delay = new_cfg["click_delay"]
         self.capture_retry_delay = new_cfg["capture_retry_delay"]
         self.template_retry_delay = new_cfg["template_retry_delay"]
-        self.max_retry_attempts = new_cfg["max_retry_attempts"]
+        self.match_loop_delay = new_cfg["match_loop_delay"]
         self.template_matcher.set_base_window_size(self.base_window_size)
 
     def validate_templates(self) -> bool:
@@ -187,13 +186,13 @@ class TemplateMatchingTask(Task):
         # 特殊处理：子类可以重写此方法来调整模板坐标
         if match_result is not None:
             screenshot_w, screenshot_h = screenshot_size
-            match_result = self.process_special_templates(template_path, match_result, screenshot_w, screenshot_h)
+            match_result = self.process_special_templates_point(template_path, match_result, screenshot_w, screenshot_h)
             if match_result and match_result[0] is not None:
                 return match_result
         
         return None
 
-    def process_special_templates(self, template_path: str, match_result: Optional[tuple], 
+    def process_special_templates_point(self, template_path: str, match_result: Optional[tuple], 
                                 screenshot_w: int, screenshot_h: int) -> Optional[tuple]:
         """
         处理特殊模板。
@@ -252,15 +251,8 @@ class TemplateMatchingTask(Task):
         print(f"找到模板 {template_path}, 点击位置: ({x}, {y})")
         
         if self.auto_clicker.click(x, y):
-            # 获取本地图片路径并未包含在已点击模板中
-            huo_dong_template = ["template_img/huo_dong.png", "template_img/huo_dong_hong_dian.png"]
-            if template_path in huo_dong_template:
-                self.clicked_templates.update(huo_dong_template)
-            elif not "tiao_guo_ju_qing.png" in template_path:
+            if not "tiao_guo_ju_qing.png" in template_path:
                 self.clicked_templates.add(template_path)
-            elif "ri_chang_fu_ben_jie_shu.png" in template_path:
-                self._sleep(1)
-                self.auto_clicker.click(x, y)
             total_templates = len(self.get_template_path_list())
             print(f"已点击的模板数量: {len(self.clicked_templates)}/{total_templates}")
             return True

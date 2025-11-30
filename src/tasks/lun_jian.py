@@ -1,5 +1,4 @@
 from .template_maching_task import TemplateMatchingTask
-from time import sleep
 from ..ui.core.logger import logger
 
 class LunJian(TemplateMatchingTask):
@@ -131,8 +130,6 @@ class LunJian(TemplateMatchingTask):
             self._stop_event.clear()  # 确保停止事件未设置
             self.clicked_templates.clear()  # 启动时清空点击记录
             logger.info(f"任务 {self.get_task_name()} 已启动")
-        else:
-            logger.info(f"任务 {self.get_task_name()} 已经在运行")
 
     def stop(self):
         """停止任务."""
@@ -141,8 +138,6 @@ class LunJian(TemplateMatchingTask):
             self._stop_event.set()  # 设置停止事件
             self.clicked_templates.clear()  # 停止时清空点击记录
             logger.info(f"任务 {self.get_task_name()} 已停止")
-        else:
-            logger.info(f"任务 {self.get_task_name()} 未在运行")
 
     def __str__(self):
         """返回任务的字符串表示."""

@@ -8,7 +8,8 @@
     ],
     "match_threshold": 0.7,
     "click_delay": 1.5,
-    "capture_retry_delay": 3,
-    "template_retry_delay": 0.30000000000000004,
+    "capture_retry_delay": 2.5,
+    "template_retry_delay": 0.1,
+    "match_loop_delay": 2.5,
     "max_retry_attempts": 6
 }

@@ -1,6 +1,6 @@
-from pywinauto import Application, findwindows
+from pywinauto import Application
 from pywinauto.findwindows import ElementNotFoundError
-import time
+from time import sleep
 
 class AutoClicker:
     """
@@ -64,7 +64,7 @@ class AutoClicker:
         try:
             self.window.click(coords=(x, y))
             # print(f"成功点击 ({x}, {y})")
-            time.sleep(delay)
+            sleep(delay)
             return True
         except Exception as e:
             print(f"点击失败: {e}")

@@ -227,8 +227,10 @@ class TaskModel(QObject):
             self.set_status("未运行")
             return
         
-        if not self.connect_window():
-            self.set_status("启动失败：窗口未连接")
+        if self.hwnd is None:
+            logger.warning("窗口句柄为空，尝试连接窗口...")
+            if not self.connect_window():
+                self.set_status("启动失败：窗口未连接")
             return
             
         # 重置停止事件

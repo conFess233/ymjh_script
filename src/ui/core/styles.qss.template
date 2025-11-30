@@ -20,15 +20,13 @@ QLineEdit, QTextEdit, QPlainTextEdit {
 }
 
 /* ===========================================
-   QComboBox (您的代码中手动设置的部分)
-   QSS 可以优雅地处理下拉箭头和列表样式
+   QComboBox
    =========================================== */
 QComboBox {
     background-color: @base;
     color: @text;
     border: 2px solid @alternate_base;
     /* 设置下拉按钮的文字颜色 (ButtonText) */
-    /* 严格来说，QSS里设置QComboBox::drop-down的color更准确 */
     selection-background-color: @highlight; /* 下拉菜单选中背景 */
     selection-color: @highlighted_text;      /* 下拉菜单选中文字 */
 }
@@ -38,6 +36,7 @@ QComboBox QAbstractItemView {
     color: @text;
     selection-background-color: @highlight;
     selection-color: @highlighted_text;
+    min-height: 10px;
 }
 
 /* ===========================================
@@ -101,15 +100,6 @@ QPushButton[class="primary"]:pressed {
     padding-top: 9px;
     padding-bottom: 7px;
     color: @highlight; /* 文本颜色也跟着切换，增强对比 */
-}
-
-/* ===========================================
-   高亮/选中 (对应 QPalette.Highlight / HighlightedText)
-   这主要影响表格、列表等组件的选中行
-   =========================================== */
-QTreeView::item:selected, QListView::item:selected, QTableView::item:selected {
-    background-color: @highlight;
-    color: @highlighted_text;
 }
 
 /* ===========================================

@@ -32,7 +32,7 @@ class _TaskCfgModel(QObject):
             "click_delay": 3,                   # 点击后的默认等待时间（秒）
             "capture_retry_delay": 2,           # 捕获失败重试延迟（秒）
             "template_retry_delay": 0.5,        # 模板匹配失败重试延迟（秒）
-            "max_retry_attempts": 5,            # 最大重试次数
+            "match_loop_delay": 1,              # 模板匹配循环延迟（秒）
         }
 
         self.load_task_cfg()
