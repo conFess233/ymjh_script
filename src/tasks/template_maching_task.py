@@ -41,7 +41,7 @@ class TemplateMatchingTask(Task):
         self.click_delay = config["click_delay"]                            # 点击后的默认等待时间（秒）
         self.capture_retry_delay = config["capture_retry_delay"]            # 捕获失败重试延迟（秒）
         self.template_retry_delay = config["template_retry_delay"]          # 模板匹配失败重试延迟（秒）
-        self.max_retry_attempts = config["match_loop_delay"]                # 模板匹配循环延迟（秒）
+        self.match_loop_delay = config["match_loop_delay"]                # 模板匹配循环延迟（秒）
 
         self.task_timeout = None                                            # 任务允许的最大运行时间（秒）
         self.start_time = None                                              # 任务开始运行的时间戳
