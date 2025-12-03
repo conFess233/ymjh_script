@@ -2,7 +2,7 @@ from ..core.theme_manager import theme_manager
 import json
 import os
 import atexit
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject
 
 class SettingsModel(QObject):
     """

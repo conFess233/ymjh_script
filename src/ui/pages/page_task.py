@@ -212,7 +212,7 @@ class PageScript(QWidget):
         try:
             win32gui.SetForegroundWindow(hwnd)
 
-            # 辅助步骤：如果窗口最小化了，需要先还原它才能带到最前
+            # 如果窗口最小化，需要先还原它才能带到最前
             if win32gui.IsIconic(hwnd):
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
 
@@ -235,7 +235,7 @@ class PageScript(QWidget):
             logger.error("当前选中的窗口句柄无效！")
             return 0
         return hwnd
-    # ⚡ 核心槽：处理运行按钮的点击
+    # 处理运行按钮的点击
     def _toggle_run_queue(self):
         """
         根据当前状态切换运行/停止任务队列。
@@ -258,6 +258,7 @@ class PageScript(QWidget):
             self.connect_window_btn.setEnabled(False)
             self.script_cfg_btn.setEnabled(False)
             self.find_window_btn.setEnabled(False)
+            self.clear_run_list_btn.setEnabled(False)
         else: # "未运行", "队列已完成", "发生错误"
             self.run_btn.setText("开始运行")
             # 停止时，恢复任务增删功能
@@ -266,5 +267,6 @@ class PageScript(QWidget):
             self.connect_window_btn.setEnabled(True)
             self.script_cfg_btn.setEnabled(True)
             self.find_window_btn.setEnabled(True)
+            self.clear_run_list_btn.setEnabled(True)
 
 

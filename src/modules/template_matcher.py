@@ -8,17 +8,6 @@ class TemplateMatcher:
     模板匹配类。
 
     在图片中寻找模板的坐标位置，支持随时切换模板。
-
-    Attributes:
-        template_path (Optional[str]): 当前模板图像路径。
-        template (Optional[np.ndarray]): 当前模板图像。
-        template_gray (Optional[np.ndarray]): 当前模板的灰度图。
-        base_w (int): 基准窗口宽度。
-        base_h (int): 基准窗口高度。
-        last_match (Optional[Tuple[Tuple[int, int], float, Tuple[int, int]]]):
-            上次匹配结果（中心点坐标、相似度分数、模板尺寸）。
-        template_mask (Optional[np.ndarray]): 模板掩模，用于屏蔽背景区域。
-        method (int): OpenCV 模板匹配算法标识（默认为 TM_CCOEFF_NORMED）。
     """
 
     def __init__(self, template_path: str, base_window_size: tuple):
@@ -29,14 +18,14 @@ class TemplateMatcher:
             template_path (str): 模板图像路径。
             base_window_size (tuple): 基准窗口尺寸 (宽度, 高度)。
         """
-        self.template_path = None
-        self.template = None
-        self.template_gray = None
-        self.base_window_size = base_window_size
-        self.base_w, self.base_h = base_window_size
-        self.last_match = None
+        self.template_path = None #  当前模板路径
+        self.template = None # 当前模板图像
+        self.template_gray = None # 当前模板灰度图
+        self.base_window_size = base_window_size # 基准窗口尺寸
+        self.base_w, self.base_h = base_window_size # 基准宽高
+        self.last_match = None # 上次匹配结果
         self.method = cv2.TM_CCOEFF_NORMED  # 默认匹配方法
-        self.template_mask = None
+        self.template_mask = None # 模板掩模
 
     def set_base_window_size(self, base_window_size: tuple):
         """
@@ -58,6 +47,7 @@ class TemplateMatcher:
         Raises:
             FileNotFoundError: 当模板图像无法加载时抛出异常。
         """
+        # 加载模板图像
         template = cv2.imread(template_path, cv2.IMREAD_UNCHANGED)
         if template is None:
             raise FileNotFoundError(f"无法加载模板: {template_path}")

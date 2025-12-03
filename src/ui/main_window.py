@@ -15,10 +15,6 @@ class MainWindow(QMainWindow):
     """
     def __init__(self):
         super().__init__()
-        # 检查管理员权限
-        if not self.is_admin():
-            if not self.show_admin_warning():
-                exit(1)
         self.setWindowTitle("YMJH Script")
         self.setGeometry(200, 100, 1200, 800)
 
@@ -92,40 +88,43 @@ class MainWindow(QMainWindow):
         btn.setEnabled(False)
         btn.setStyleSheet("background-color: #0078D7; color: white; font-weight: bold;")
 
-    def is_admin(self) -> bool:
-        """
-        检查当前是否以管理员权限运行
-        """
-        import ctypes
-        try:
-            # 检查用户是否为管理员
-            return ctypes.windll.shell32.IsUserAnAdmin()
-        except:
-            return False
+def is_admin() -> bool:
+    """
+    检查当前是否以管理员权限运行
+    """
+    import ctypes
+    try:
+        # 检查用户是否为管理员
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
     
-    def show_admin_warning(self):
-        """
-        显示管理员权限警告
-        """
-        from PySide6.QtWidgets import QMessageBox
-        msg = QMessageBox()
-        msg.setIcon(QMessageBox.Warning) # type: ignore
-        msg.setText("警告")
-        msg.setInformativeText("当前用户不是管理员，部分功能可能受限。\n是否继续？")
-        msg.setWindowTitle("管理员权限警告")
-        msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No) # type: ignore
-        ret = msg.exec()
-        return ret == QMessageBox.Yes # type: ignore
+def show_admin_warning():
+    """
+    显示管理员权限警告
+    """
+    from PySide6.QtWidgets import QMessageBox
+    msg = QMessageBox()
+    msg.setIcon(QMessageBox.Warning) # type: ignore
+    msg.setText("警告")
+    msg.setInformativeText("当前用户不是管理员，部分功能可能受限。\n是否继续？")
+    msg.setWindowTitle("管理员权限警告")
+    msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No) # type: ignore
+    ret = msg.exec()
+    return ret == QMessageBox.Yes # type: ignore
 
-def main():
+def run():
     """
     主函数，启动应用.
     """
     app = QApplication(sys.argv)
+    if not is_admin():
+        if not show_admin_warning():
+            sys.exit(1)
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
 
 
 if __name__ == "__main__":
-    main()
+    run()

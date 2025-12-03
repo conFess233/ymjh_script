@@ -301,7 +301,6 @@ class TaskModel(QObject):
                     # 任务执行
                     try:
                         if hasattr(task, 'run'):
-                            # 任务的 run() 方法需要在内部实现超时检查
                             task.run() 
                         else:
                             task.start()

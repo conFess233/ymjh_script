@@ -41,7 +41,7 @@ class TemplateMatchingTask(Task):
         self.click_delay = config["click_delay"]                            # 点击后的默认等待时间（秒）
         self.capture_retry_delay = config["capture_retry_delay"]            # 捕获失败重试延迟（秒）
         self.template_retry_delay = config["template_retry_delay"]          # 模板匹配失败重试延迟（秒）
-        self.match_loop_delay = config["match_loop_delay"]                # 模板匹配循环延迟（秒）
+        self.match_loop_delay = config["match_loop_delay"]                  # 模板匹配循环延迟（秒）
 
         self.task_timeout = None                                            # 任务允许的最大运行时间（秒）
         self.start_time = None                                              # 任务开始运行的时间戳
@@ -251,8 +251,7 @@ class TemplateMatchingTask(Task):
         print(f"找到模板 {template_path}, 点击位置: ({x}, {y})")
         
         if self.auto_clicker.click(x, y):
-            if not "tiao_guo_ju_qing.png" in template_path:
-                self.clicked_templates.add(template_path)
+            self.add_clicked_template(template_path)
             total_templates = len(self.get_template_path_list())
             print(f"已点击的模板数量: {len(self.clicked_templates)}/{total_templates}")
             return True
@@ -262,6 +261,17 @@ class TemplateMatchingTask(Task):
 
 
     # --- 辅助方法 ---
+    @abstractmethod
+    def add_clicked_template(self, template_path: str):
+        """
+        记录已点击的模板路径.
+        子类需实现此方法，将模板路径添加到已点击集合中。
+
+        Args:
+            template_path (str): 模板路径。
+        """
+        self.clicked_templates.add(template_path)
+
     def _sleep(self, delay: float) -> bool:
             """
             使用 Event.wait 代替 time.sleep 实现非阻塞延迟。

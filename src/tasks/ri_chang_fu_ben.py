@@ -133,6 +133,20 @@ class RiChangFuBen(TemplateMatchingTask):
         except KeyboardInterrupt:
             logger.info(f"[{self.get_task_name()}]任务被手动停止。")
         return # 任务逻辑结束
+    
+    def add_clicked_template(self, template_path: str):
+        """
+        添加已点击的模板记录.
+
+        Args:
+            template_path (str): 模板图片路径
+        """
+        if not "tiao_guo_ju_qing.png" in template_path:
+                self.clicked_templates.add(template_path)
+        if template_path in ["template_img/huo_dong.png", "template_img/huo_dong_hong_dian.png"]:
+            self.clicked_templates.update(["template_img/huo_dong.png", "template_img/huo_dong_hong_dian.png"])
+        elif template_path in ["template_img/jiang_hu_ji_shi.png", "template_img/jiang_hu_ji_shi_1.png"]:
+            self.clicked_templates.update(["template_img/jiang_hu_ji_shi.png", "template_img/jiang_hu_ji_shi_1.png"])
 
     def start(self):
         """启动任务."""
