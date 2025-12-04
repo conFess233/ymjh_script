@@ -81,7 +81,7 @@ class LunJian(TemplateMatchingTask):
                     if match_result is None:
                         # 捕获失败，继续下一个模板
                         # 如果捕获失败，等待重试时检查停止/超时
-                        if self._sleep(self.capture_retry_delay):
+                        if self._pause_aware_sleep(self.capture_retry_delay):
                             return 
                         continue
                     
@@ -92,8 +92,9 @@ class LunJian(TemplateMatchingTask):
                             matched = True
                             logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}")
                             
+                            # 特殊处理
                             # 如果点击确认，记录点击并退出循环
-                            if "que_ding.png" in template_path:
+                            if "que_ding.png" in template_path and "tui_chu_lun_jian.png" in self.clicked_templates:
                                 logger.info(f"[{self.get_task_name()}]已执行退出副本操作，结束任务。")
                                 self.stop() # 停止任务，退出 while 循环
                                 return 
@@ -102,7 +103,7 @@ class LunJian(TemplateMatchingTask):
                     else:
                         logger.info(f"[{self.get_task_name()}]模板 {template_path} 未匹配到有效位置, 相似度:{match_val:.3f}")
                         # 模板匹配失败，等待重试时检查停止/超时
-                        if self._sleep(self.template_retry_delay):
+                        if self._pause_aware_sleep(self.template_retry_delay):
                             return
 
 
@@ -114,7 +115,7 @@ class LunJian(TemplateMatchingTask):
                 
                 # 等待下次循环
                 # 每次等待时检查是否停止或超时
-                if self._sleep(self.click_delay):
+                if self._pause_aware_sleep(self.click_delay):
                     return # 被停止，退出任务逻辑
                 
             logger.info(f"[{self.get_task_name()}]任务逻辑自然退出。")

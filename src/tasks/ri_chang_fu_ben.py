@@ -81,7 +81,7 @@ class RiChangFuBen(TemplateMatchingTask):
                         match_result = self.capture_and_match_template(template_path)
                     
                     if match_result is None:
-                        if self._sleep(self.template_retry_delay):
+                        if self._pause_aware_sleep(self.template_retry_delay):
                             return
                         continue
                     
@@ -91,15 +91,9 @@ class RiChangFuBen(TemplateMatchingTask):
                         if self.click_template(template_path, center):
                             matched = True
                             logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}")
-                            
-                            # 特殊模板处理
-                            if template_path in ["template_img/huo_dong.png", "template_img/huo_dong_hong_dian.png"]:
-                                self.clicked_templates.update(["template_img/huo_dong.png", "template_img/huo_dong_hong_dian.png"])
-                            elif template_path in ["template_img/jiang_hu_ji_shi.png", "template_img/jiang_hu_ji_shi_1.png"]:
-                                self.clicked_templates.update(["template_img/jiang_hu_ji_shi.png", "template_img/jiang_hu_ji_shi_1.png"])
                                 
                             if "ri_chang_fu_ben_jie_shu.png" in template_path:
-                                self._sleep(1)
+                                self._pause_aware_sleep(1)
                                 self.auto_clicker.click(center[0], center[1])
 
                             # 若提前点击退本按钮，直接退出任务
@@ -108,12 +102,12 @@ class RiChangFuBen(TemplateMatchingTask):
                                 self.stop() # 停止任务，退出 while 循环
                                 return 
                             
-                            self._sleep(self.click_delay)
+                            self._pause_aware_sleep(self.click_delay)
                             break  # 找到一个匹配后跳出 for 循环
                     else:
                         logger.info(f"[{self.get_task_name()}]模板 {template_path} 未匹配到有效位置, 相似度:{match_val:.3f}")
                         # 模板匹配失败，等待重试时检查停止/超时
-                        if self._sleep(self.template_retry_delay):
+                        if self._pause_aware_sleep(self.template_retry_delay):
                             return
 
 
@@ -125,7 +119,7 @@ class RiChangFuBen(TemplateMatchingTask):
                 
                 # 等待下次循环 
                 # 每次等待时检查是否停止或超时
-                if self._sleep(self.match_loop_delay):
+                if self._pause_aware_sleep(self.match_loop_delay):
                     return # 被停止，退出任务逻辑
                 
             logger.info(f"[{self.get_task_name()}]任务逻辑自然退出。")

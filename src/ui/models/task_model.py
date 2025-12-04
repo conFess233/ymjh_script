@@ -1,6 +1,7 @@
 import threading
 import win32gui
 import re
+import time
 from typing import Optional
 from PySide6.QtCore import QObject, Signal
 from src.tasks.ri_chang_fu_ben import RiChangFuBen
@@ -21,6 +22,7 @@ class TaskModel(QObject):
     running_task_changed = Signal(str)      # 当前运行任务变化时发送
     run_list_changed = Signal()             # 运行列表增删改时发送（通知 UI 刷新列表）
     connect_window_changed = Signal(str)    # 连接窗口信号，参数为窗口标题
+    queue_paused_changed = Signal(bool)     # 队列暂停状态变化时发送，参数为暂停状态（True/False）
 
     # 任务名称到任务类的映射
     TASK_MAP = {
@@ -35,6 +37,7 @@ class TaskModel(QObject):
         self._status = "待机"                                       # 当前任务状态
         self._progress = 0                                          # 当前任务进度
         self._is_queue_running = False                              # 队列是否在运行
+        self._is_queue_paused = False                               # 队列是否暂停
         
         self.window_title = task_cfg_model.task_cfg["window_title"] # 游戏窗口标题
         self.thread_timeout = task_cfg_model.task_cfg["timeout"]    # 线程超时时间，单位秒
@@ -47,6 +50,7 @@ class TaskModel(QObject):
         # 用于任务队列多线程控制
         self._queue_thread: Optional[threading.Thread] = None       # 任务队列线程
         self._stop_event = threading.Event()                        # 停止事件，用于控制任务队列线程
+        self._pause_condition = threading.Condition()               # 暂停条件变量，用于暂停/恢复任务队列线程
         self._current_task_index = -1                               # 当前正在运行的任务在列表中的索引
 
         task_cfg_model.task_cfg_updated.connect(self.load_task_cfg) # 任务配置更新时加载任务配置
@@ -273,9 +277,20 @@ class TaskModel(QObject):
             # 外部循环：控制总的运行次数
             while current_loop < self.loop_count and not self._stop_event.is_set():
                 logger.info(f"--- 开始第 {current_loop + 1} 次循环 (共 {self.loop_count} 次) ---")
+                # 计时器开始，用于计算每轮任务执行消耗的时间
+                start_time = time.time()
+                total_time = 0 # 累计每轮任务总耗时
                 
                 # 内部循环：迭代任务列表
                 for index, task in enumerate(self._run_list):
+
+                    # ⚡ 暂停检查点：在每个任务开始前检查是否需要暂停
+                    with self._pause_condition:
+                        while self._is_queue_paused:
+                            self.set_status("已暂停") # 确保状态更新到 UI
+                            # 线程在此阻塞，直到 resume_queue() 调用 notify() 
+                            # 并且 _is_queue_paused 被设置为 False
+                            self._pause_condition.wait()
                     # 检查总停止信号
                     if self._stop_event.is_set():
                         logger.info("接收到停止信号，任务队列中止。")
@@ -285,7 +300,7 @@ class TaskModel(QObject):
                     task_name = task.get_task_name()
                     
                     try:
-                        task.configure_window_access(self.wincap, self.clicker)
+                        task.configure_window_access(self.wincap, self.clicker, self._pause_condition, lambda: self._is_queue_paused)
                         
                         # 注入超时时间
                         if hasattr(task, 'set_timeout'):
@@ -314,13 +329,16 @@ class TaskModel(QObject):
                     # 更新进度
                     progress_value = int((index + 1) / total_tasks * 100)
                     self.set_progress(progress_value)
-                    logger.info(f"任务 {task_name} 完成。")
+                    end_time = time.time()
+                    round_time = end_time - start_time
+                    total_time += round_time
+                    logger.info(f"任务 {task_name} 完成。本轮耗时: {round_time:.2f}秒")
 
                 # 队列自然完成一次循环
                 if not self._stop_event.is_set():
                     current_loop += 1
                     self.set_progress(0) # 每轮结束后重置进度条
-                
+                    logger.info(f"第 {current_loop} 次循环完成，总耗时: {total_time:.2f}秒")                
             # 循环结束后的状态处理
             if not self._stop_event.is_set():
                 self.set_status("队列已完成")
@@ -331,10 +349,41 @@ class TaskModel(QObject):
         
         finally:
             self.set_queue_running(False) # 最终设置为未运行
+            # 确保在退出线程时，唤醒 Condition，防止其他线程在此等待
+            with self._pause_condition:
+                self._pause_condition.notify_all()
+            self.set_queue_paused(False) # 重置暂停状态
             self.set_progress(0)
             self.set_running_task("无")
             self._current_task_index = -1
             self._queue_thread = None # 清理线程引用
+
+    def pause_queue(self):
+        """
+        暂停任务队列的执行.
+        """
+        if self._is_queue_running and not self._is_queue_paused:
+            self._is_queue_paused = True
+            logger.info("任务队列已暂停...")
+            self.queue_paused_changed.emit(True)
+            self.set_status("已暂停")
+        else:
+            logger.warning("任务未运行或已暂停，无法执行暂停操作。")
+
+    def resume_queue(self):
+        """
+        恢复任务队列的执行.
+        """
+        if self._is_queue_running and self._is_queue_paused:
+            # 必须在 Condition 锁内修改状态并通知
+            with self._pause_condition:
+                self._is_queue_paused = False
+                logger.info("任务队列已恢复运行...")
+                self.queue_paused_changed.emit(False)
+                # set_status 会在 _run_task_queue 恢复后更新
+                self._pause_condition.notify_all() # 唤醒等待的线程
+        else:
+            logger.warning("任务未运行或未处于暂停状态，无法执行恢复操作。")
 
     # --- getters/setters ---
     def set_progress(self, progress: int):
@@ -390,6 +439,19 @@ class TaskModel(QObject):
         返回任务队列是否正在运行.
         """
         return self._is_queue_running
+    
+    def is_queue_paused(self) -> bool:
+        """
+        返回任务队列是否处于暂停状态.
+        """
+        return self._is_queue_paused
+
+    def set_queue_paused(self, state: bool):
+        """
+        设置任务队列的暂停状态
+        """
+        self._is_queue_paused = state
+        self.queue_paused_changed.emit(state)
 
     def set_queue_running(self, state: bool):
         """

@@ -22,7 +22,7 @@ class PageScript(QWidget):
         self.slist_vbox = QVBoxLayout()
         # 创建左侧容器并设置宽度和布局
         self.container = QWidget()
-        self.container.setFixedWidth(200)
+        self.container.setFixedWidth(210)
         self.container.setLayout(self.slist_vbox)
         # 创建脚本配置网格布局，并设置间距和边距
         self.scfg_grid = QGridLayout()
@@ -61,6 +61,7 @@ class PageScript(QWidget):
         self.connect_window_btn = QPushButton("连接窗口")
         self.show_window_btn = QPushButton("显示窗口")
         self.clear_run_list_btn = QPushButton("清空列表")
+        self.pause_btn = QPushButton("暂停任务")
 
         # 设置按钮宽度
         self.find_window_btn.setFixedWidth(100)
@@ -68,6 +69,11 @@ class PageScript(QWidget):
         self.script_cfg_btn.setFixedWidth(100)
         self.run_btn.setFixedWidth(100)
         self.connect_window_btn.setFixedWidth(100)
+        self.show_window_btn.setFixedWidth(100)
+        self.pause_btn.setFixedWidth(100)
+
+        # 按钮初始状态
+        self.pause_btn.setEnabled(False)
 
         # 创建脚本选择下拉框，并添加任务名
         self.task_box = QComboBox()
@@ -93,6 +99,7 @@ class PageScript(QWidget):
         self.scfg_grid.addWidget(self.run_btn, 0, 4, 1, 1)
         self.scfg_grid.addWidget(QLabel("当前连接窗口:"), 1, 0, 1, 1)
         self.scfg_grid.addWidget(self.window_title, 1, 1, 1, 1)
+        self.scfg_grid.addWidget(self.pause_btn, 1, 4, 1, 1)
         self.scfg_grid.addWidget(QLabel("窗口句柄:"), 2, 0, 1, 1)
         self.scfg_grid.addWidget(self.hwnd_box, 2, 1, 1, 1)
         self.scfg_grid.addWidget(self.find_window_btn, 2, 2, 1, 1)
@@ -170,6 +177,7 @@ class PageScript(QWidget):
         
         # 连接 Model 的状态变化信号到 UI 更新方法
         self.model.status_changed.connect(self.update_run_button_state)
+        self.model.queue_paused_changed.connect(self._update_pause_button_state)
         
         # 其他信号连接，如更新状态标签、日志等
         self.model.status_changed.connect(self.update_status)
@@ -182,6 +190,7 @@ class PageScript(QWidget):
         self.connect_window_btn.clicked.connect(lambda: self.connect_window())
         self.show_window_btn.clicked.connect(lambda: self.show_window(self.get_current_hwnd()))
         self.clear_run_list_btn.clicked.connect(lambda: self.model.clear_run_list())
+        self.pause_btn.clicked.connect(lambda: self._toggle_pause_task())
         logger.log_signal.connect(self.display_log_message)
 
 
@@ -235,6 +244,7 @@ class PageScript(QWidget):
             logger.error("当前选中的窗口句柄无效！")
             return 0
         return hwnd
+    
     # 处理运行按钮的点击
     def _toggle_run_queue(self):
         """
@@ -245,28 +255,44 @@ class PageScript(QWidget):
         else:
             self.model.start_queue()
 
+    def _toggle_pause_task(self):
+        """
+        暂停当前运行的任务队列。
+        """
+        if self.model.is_queue_paused():
+            self.model.resume_queue()
+        else:
+            self.model.pause_queue()
+
     def update_run_button_state(self, status: str):
         """
         根据 TaskModel 发出的状态信号更新运行按钮的文本和样式。
         """
         # 1. 按钮文本和功能切换
-        if status == "运行中":
+        if status == "运行中" or status == "已暂停":
             self.run_btn.setText("停止运行")
-            # 运行中时，可以选择禁用任务增删功能（例如禁用 Add 按钮）
             self.add_task_btn.setEnabled(False) 
             self.task_list.setEnabled(False)
             self.connect_window_btn.setEnabled(False)
             self.script_cfg_btn.setEnabled(False)
             self.find_window_btn.setEnabled(False)
             self.clear_run_list_btn.setEnabled(False)
+            self.pause_btn.setEnabled(True)
         else: # "未运行", "队列已完成", "发生错误"
             self.run_btn.setText("开始运行")
-            # 停止时，恢复任务增删功能
             self.add_task_btn.setEnabled(True) 
             self.task_list.setEnabled(True)
             self.connect_window_btn.setEnabled(True)
             self.script_cfg_btn.setEnabled(True)
             self.find_window_btn.setEnabled(True)
             self.clear_run_list_btn.setEnabled(True)
-
-
+            self.pause_btn.setEnabled(False)
+    
+    def _update_pause_button_state(self, is_paused: bool):
+        """
+        根据任务队列是否暂停更新暂停按钮的文本和样式。
+        """
+        if is_paused:
+            self.pause_btn.setText("继续任务")
+        else:
+            self.pause_btn.setText("暂停任务")

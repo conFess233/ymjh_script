@@ -3,7 +3,7 @@ from ..modules.auto_clicker import AutoClicker
 from ..modules.window_capture import WindowCapture
 from ..modules.template_matcher import TemplateMatcher
 from abc import abstractmethod
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 import os
 import numpy as np
 import threading
@@ -53,14 +53,20 @@ class TemplateMatchingTask(Task):
 
         self._stop_event = threading.Event()                                # 用于停止任务的事件对象
 
+        self._pause_condition: Optional[threading.Condition] = None         # 暂停任务的条件变量
+        self._is_paused_check: Optional[Callable[[], bool]] = None          # 检查 Model 暂停状态的函数
+
 
     # --- 初始化/更新配置方法 ---
-    def configure_window_access(self, wincap: WindowCapture, clicker: AutoClicker):
+    def configure_window_access(self, wincap: WindowCapture, clicker: AutoClicker, pause_condition: threading.Condition, is_paused_check: Callable[[], bool]):
         """
         接收并配置已连接的窗口访问对象。
         """
         self.window_capture = wincap
         self.auto_clicker = clicker
+
+        self._pause_condition = pause_condition
+        self._is_paused_check = is_paused_check
 
     def update_config(self, new_cfg: dict):
         """
@@ -261,7 +267,6 @@ class TemplateMatchingTask(Task):
 
 
     # --- 辅助方法 ---
-    @abstractmethod
     def add_clicked_template(self, template_path: str):
         """
         记录已点击的模板路径.
@@ -284,6 +289,31 @@ class TemplateMatchingTask(Task):
             """
             # wait 方法会在 event 被 set 时立即返回 True
             return self._stop_event.wait(delay)
+    
+    def _pause_aware_sleep(self, delay: float) -> bool:
+        """
+        实现非阻塞等待，并在等待前和等待中检查 Model 层的暂停状态。
+        
+        Returns:
+            bool: 如果任务被要求停止，返回 True。
+        """
+        # 检查停止标志 (如果任务被stop()，直接退出)
+        if not self._running:
+            return True
+
+        # 检查并等待暂停状态 (在每次 sleep/retry 前检查)
+        if self._is_paused_check and self._pause_condition:
+            with self._pause_condition:
+                while self._is_paused_check():
+                    # 线程在此阻塞，等待 TaskModel.resume_queue() 唤醒
+                    self._pause_condition.wait() 
+        
+        # 检查停止标志 (被唤醒后再次检查)
+        if not self._running:
+            return True
+
+        # 执行非阻塞延迟（在延迟期间仍然可以被 stop() 中断）
+        return self._sleep(delay)
     
     def reset_clicked_templates(self):
         """
