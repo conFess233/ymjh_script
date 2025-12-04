@@ -5,6 +5,8 @@
 ## 使用方法
 >这个脚本目前仅支持windows的一梦江湖pc端
 
+>建议直接下载打包版，即开即用。https://github.com/conFess233/ymjh_script/releases
+
 1. 安装python环境
 >https://www.python.org/ftp/python/3.13.7/python-3.13.7-amd64.exe
 
