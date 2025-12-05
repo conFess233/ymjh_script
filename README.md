@@ -14,7 +14,7 @@
 ```
 git clone https://github.com/conFess233/ymjh_script.git
 ```
->或者直接下载zip文件并解压: https://github.com/conFess233/ymjh_script/archive/refs/heads/main.zip
+>或者直接下载源码: https://github.com/conFess233/ymjh_script/archive/refs/heads/main.zip
 
 >以下操作建议使用Powershell(管理员)或cmd(管理员)进行，否则百分百会出问题
 ><br>如果使用vscode, PyCharm等, 用管理员权限打开即可。
