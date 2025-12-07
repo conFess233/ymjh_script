@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import QWidget, QGridLayout, QLabel, QComboBox, QProgressBar, QTextEdit, QVBoxLayout, QPushButton
+from PySide6.QtGui import QColor, QBrush
 from ..models.task_model import TaskModel
 from ..widgets.task_list import TaskList
 from .script_cfg_window import ScriptCfgWindow
@@ -129,7 +130,7 @@ class PageScript(QWidget):
         """
         打开脚本配置窗口.
         """
-        cfg_window = ScriptCfgWindow()
+        cfg_window = ScriptCfgWindow(self)
         cfg_window.exec()
             
     def get_color_for_type(self, log_type: str) -> str:
@@ -150,20 +151,17 @@ class PageScript(QWidget):
                 return "black"
         else:
             # 其他类型或默认颜色
-            return "white" # 假设日志区域背景是黑色的
+            return "black"
 
     def display_log_message(self, message: str, log_type: str):
         """
         接收日志并以不同的颜色显示。
         """
         color = self.get_color_for_type(log_type)
-        
         # 使用 HTML 格式化文本
         html_message = f'<span style="color: {color};">{message}</span>'
-        
         # 将 HTML 文本追加到 QTextEdit
         self.log_area.append(html_message)
-        
         # 滚动到底部
         self.log_area.ensureCursorVisible()
 
@@ -182,7 +180,7 @@ class PageScript(QWidget):
         # 其他信号连接，如更新状态标签、日志等
         self.model.status_changed.connect(self.update_status)
         self.model.progress_changed.connect(self.progress_bar.setValue)
-        self.model.running_task_changed.connect(self.running_task.setText)
+        self.model.running_task_changed.connect(self.set_running_task)
         self.model.connect_window_changed.connect(self.window_title.setText)
         self.add_task_btn.clicked.connect(lambda: self.model.add_task(self.task_box.currentText()))
         self.script_cfg_btn.clicked.connect(lambda: self.open_script_cfg())
@@ -296,3 +294,19 @@ class PageScript(QWidget):
             self.pause_btn.setText("继续任务")
         else:
             self.pause_btn.setText("暂停任务")
+    
+    def set_running_task(self, task_name: str, index: int):
+        """
+        设置当前运行任务的显示文本.
+        """
+        if task_name:
+            self.running_task.setText(task_name)
+            for i in range(self.task_list.count()):
+                item = self.task_list.item(i)
+                if item.text() == task_name:
+                    item.setForeground(QBrush(QColor("orange")))
+                    break
+                else:
+                    item.setForeground(QBrush(QColor("black")))
+        else:
+            self.running_task.setText("无")

@@ -20,7 +20,7 @@ class TemplateMatchingTask(Task):
     # 任务名，子类需重写此常量
     TASK_NAME = None
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, log_mode: int = 0):
         """
         初始化模板匹配任务。
 
@@ -46,6 +46,8 @@ class TemplateMatchingTask(Task):
         self.task_timeout = None                                            # 任务允许的最大运行时间（秒）
         self.start_time = None                                              # 任务开始运行的时间戳
         self.template_matcher = TemplateMatcher("", self.base_window_size)  # 模板匹配器实例
+
+        self.log_mode = log_mode                                            # 日志模式
 
         # 状态变量
         self._running = False                                               # 当前任务运行状态标志
@@ -542,6 +544,15 @@ class TemplateMatchingTask(Task):
         """
         total_templates = len(self.get_template_path_list())
         return len(self.clicked_templates) >= total_templates
+    
+    def set_log_mode(self, log_mode: int):
+        """
+        设置日志模式。
+
+        Args:
+            log_mode (int): 新的日志模式。
+        """
+        self.log_mode = log_mode
 
     def __str__(self) -> str:
         """

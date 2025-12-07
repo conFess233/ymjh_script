@@ -5,9 +5,9 @@ class ScriptCfgWindow(QDialog):
     """
     脚本配置窗口类，包含基准窗口大小、默认模板匹配阈值、点击后的默认等待时间、捕获失败重试延迟、模板匹配失败重试延迟、最大模板匹配重试次数等配置项.
     """
-    def __init__(self):
+    def __init__(self, parent=None):
         # 调用父类的初始化方法
-        super().__init__()
+        super().__init__(parent)
         # 设置窗口标题为“脚本配置”
         self.setWindowTitle("脚本配置")
         # 设置窗口初始大小为 250x150

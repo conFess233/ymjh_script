@@ -29,11 +29,11 @@ class AutoClicker:
         try:
             self.app = Application().connect(handle=self.hwnd)
             self.window = self.app.window(handle=self.hwnd)
-            print(f"成功连接窗口: (hwnd={self.hwnd})")
+            # print(f"成功连接窗口: (hwnd={self.hwnd})")
         except ElementNotFoundError:
-            print(f"未找到窗口: (hwnd={self.hwnd})")
+            raise ElementNotFoundError(f"未找到窗口: (hwnd={self.hwnd})")
         except Exception as e:
-            print(f"连接窗口失败: {e}")
+            raise ConnectionError(f"连接窗口失败: {e}")
     
     def set_hwnd(self, hwnd: int):
         """
@@ -67,7 +67,7 @@ class AutoClicker:
             sleep(delay)
             return True
         except Exception as e:
-            print(f"点击失败: {e}")
+            raise Exception(f"点击失败: {e}")
             return False
 
     def is_window_ready(self) -> bool:

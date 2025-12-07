@@ -25,10 +25,10 @@ class RiChangFuBen(TemplateMatchingTask):
         "template_img/tui_ben_tui_dui.png",
     ]
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, log_mode: int = 0):
         """初始化日常副本任务."""
         # 调用父类初始化
-        super().__init__(config)
+        super().__init__(config, log_mode)
 
     def get_template_path_list(self) -> list:
         """
@@ -52,7 +52,7 @@ class RiChangFuBen(TemplateMatchingTask):
         """执行具体的任务逻辑."""
         # 验证模板文件
         if not self.validate_templates():
-            logger.error(f"[{self.get_task_name()}]模板文件验证失败，任务无法启动")
+            logger.error(f"[{self.get_task_name()}]模板文件验证失败，任务无法启动", mode=self.log_mode)
             return
         
         try:
@@ -90,7 +90,7 @@ class RiChangFuBen(TemplateMatchingTask):
                         # 点击匹配到的模板
                         if self.click_template(template_path, center):
                             matched = True
-                            logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}")
+                            logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}", mode=self.log_mode)
                                 
                             if "ri_chang_fu_ben_jie_shu.png" in template_path:
                                 self._pause_aware_sleep(1)
@@ -98,14 +98,14 @@ class RiChangFuBen(TemplateMatchingTask):
 
                             # 若提前点击退本按钮，直接退出任务
                             if "tui_ben_tui_dui.png" in template_path:
-                                logger.info(f"[{self.get_task_name()}]已执行退出副本操作，结束任务。")
+                                logger.info(f"[{self.get_task_name()}]已执行退出副本操作，结束任务。", mode=self.log_mode)
                                 self.stop() # 停止任务，退出 while 循环
                                 return 
                             
                             self._pause_aware_sleep(self.click_delay)
                             break  # 找到一个匹配后跳出 for 循环
                     else:
-                        logger.info(f"[{self.get_task_name()}]模板 {template_path} 未匹配到有效位置, 相似度:{match_val:.3f}")
+                        logger.info(f"[{self.get_task_name()}]模板 {template_path} 未匹配到有效位置, 相似度:{match_val:.3f}", mode=self.log_mode)
                         # 模板匹配失败，等待重试时检查停止/超时
                         if self._pause_aware_sleep(self.template_retry_delay):
                             return
@@ -114,7 +114,7 @@ class RiChangFuBen(TemplateMatchingTask):
                 # 如果没有匹配到任何模板，检查是否已完成所有任务
                 if not matched:
                     if self.is_task_completed():
-                        logger.info(f"[{self.get_task_name()}]所有模板已处理完成，任务结束")
+                        logger.info(f"[{self.get_task_name()}]所有模板已处理完成，任务结束", mode=self.log_mode)
                         break # 完成所有模板，退出 while 循环
                 
                 # 等待下次循环 
@@ -122,10 +122,10 @@ class RiChangFuBen(TemplateMatchingTask):
                 if self._pause_aware_sleep(self.match_loop_delay):
                     return # 被停止，退出任务逻辑
                 
-            logger.info(f"[{self.get_task_name()}]任务逻辑自然退出。")
+            logger.info(f"[{self.get_task_name()}]任务逻辑自然退出。", mode=self.log_mode)
 
         except KeyboardInterrupt:
-            logger.info(f"[{self.get_task_name()}]任务被手动停止。")
+            logger.info(f"[{self.get_task_name()}]任务被手动停止。", mode=self.log_mode)
         return # 任务逻辑结束
     
     def add_clicked_template(self, template_path: str):
@@ -148,7 +148,7 @@ class RiChangFuBen(TemplateMatchingTask):
             self._running = True
             self._stop_event.clear()  # 确保事件未被设置
             self.clicked_templates.clear()  # 启动时清空点击记录
-            logger.info(f"[{self.get_task_name()}]任务已启动")
+            logger.info(f"[{self.get_task_name()}]任务已启动", mode=self.log_mode)
 
     def stop(self):
         """停止任务."""
@@ -156,7 +156,7 @@ class RiChangFuBen(TemplateMatchingTask):
             self._running = False
             self.clicked_templates.clear()  # 停止时清空点击记录
             self._stop_event.set()  # 设置事件，通知任务停止
-            logger.info(f"[{self.get_task_name()}]任务已停止")
+            logger.info(f"[{self.get_task_name()}]任务已停止", mode=self.log_mode)
 
     def __str__(self):
         """返回任务的字符串表示."""

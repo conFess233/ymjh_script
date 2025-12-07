@@ -65,10 +65,11 @@ pyinstaller -F -w --clean main.py --add-data "src/ui/core/styles.qss.template:."
 - 运行脚本时请确保一梦江湖客户端已经登录并且在主界面。
 - 如果脚本无法正常运行，请检查系统缩放，一般为125%。
 - 脚本运行时可操作其它窗口，但不要将游戏窗口最小化，这会导致系统停止渲染游戏画面，导致脚本无法正常运行。
+- 目前多开功能还没有经过测试，可能会出现一些问题。
 
 ## 预定添加的功能
 - <input type="checkbox" checked="true" disabled="true">暂停</input>
-- <input type="checkbox" disabled="true">多开</input>
+- <input type="checkbox" checked="true" disabled="true">多开</input>
 - <input type="checkbox" disabled="true">更多任务流程</input>
 - <input type="checkbox" disabled="true">资源占用优化</input>
 - <input type="checkbox" disabled="true">更准确的匹配方法</input>
@@ -79,3 +80,9 @@ pyinstaller -F -w --clean main.py --add-data "src/ui/core/styles.qss.template:."
 
 ## 更新日志
 - *2025-12-04* 实现了暂停功能，增加了任务计时，每轮任务完成后显示耗时，添加一些使用说明。
+- *2025-12-05* 增加了多开功能，日志自动保存功能。修改了部分日志的输出方式，现在在ui界面显示的日志不会太过冗长，只显示必要的信息。
+>多开使用多进程实现，每个进程独立运行，互不干扰。
+><br>通过管道(pipe)与队列(queue)实现子进程与主进程的通信，子进程将任务结果发送给主进程，主进程通过轮询队列，将结果显示在ui界面上，任务列表由ipc线程异步处理。
+><br>优点是可以同时运行多个任务流程，每个任务流程独立运行，互不干扰。
+><br>缺点是每个进程占用的资源(内存、cpu等)会增加，同时也会增加系统的负载。实测多创建一个进程会占用40MB左右的内存。
+><br>但毕竟只是个小脚本，应该没关系吧(￣▽￣)~*

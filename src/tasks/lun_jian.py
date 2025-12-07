@@ -19,10 +19,10 @@ class LunJian(TemplateMatchingTask):
         "template_img/que_ding.png",
     ]
 
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, log_mode: int = 0):
         """初始化论剑任务."""
         # 调用父类初始化
-        super().__init__(config)
+        super().__init__(config, log_mode)
 
     def get_template_path_list(self) -> list:
         """获取模板路径列表.
@@ -53,7 +53,7 @@ class LunJian(TemplateMatchingTask):
         
         # 验证模板文件
         if not self.validate_templates():
-            logger.error(f"[{self.get_task_name()}]模板文件验证失败，任务无法启动")
+            logger.error(f"[{self.get_task_name()}]模板文件验证失败，任务无法启动", mode=self.log_mode)
             return
 
         try:
@@ -61,6 +61,7 @@ class LunJian(TemplateMatchingTask):
                 
                 # 每次循环开始时检查是否超时
                 if self.check_timeout():
+                    logger.warning(f"[{self.get_task_name()}]任务超时，已退出.", mode=self.log_mode)
                     return # 超时，退出任务逻辑
                 
                 matched = False
@@ -90,18 +91,17 @@ class LunJian(TemplateMatchingTask):
                         # 点击匹配到的模板
                         if self.click_template(template_path, center):
                             matched = True
-                            logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}")
+                            logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}", mode=self.log_mode)
                             
                             # 特殊处理
                             # 如果点击确认，记录点击并退出循环
                             if "que_ding.png" in template_path and "tui_chu_lun_jian.png" in self.clicked_templates:
-                                logger.info(f"[{self.get_task_name()}]已执行退出副本操作，结束任务。")
+                                logger.info(f"[{self.get_task_name()}]已执行退出副本操作，结束任务。", mode=self.log_mode)
                                 self.stop() # 停止任务，退出 while 循环
                                 return 
                             
                             break  # 找到一个匹配后跳出 for 循环
                     else:
-                        logger.info(f"[{self.get_task_name()}]模板 {template_path} 未匹配到有效位置, 相似度:{match_val:.3f}")
                         # 模板匹配失败，等待重试时检查停止/超时
                         if self._pause_aware_sleep(self.template_retry_delay):
                             return
@@ -110,7 +110,7 @@ class LunJian(TemplateMatchingTask):
                 # 如果没有匹配到任何模板，检查是否已完成所有任务
                 if not matched:
                     if self.is_task_completed():
-                        logger.info(f"[{self.get_task_name()}]所有模板已处理完成，任务结束")
+                        logger.info(f"[{self.get_task_name()}]所有模板已处理完成，任务结束", mode=self.log_mode)
                         break # 完成所有模板，退出 while 循环
                 
                 # 等待下次循环
@@ -118,10 +118,10 @@ class LunJian(TemplateMatchingTask):
                 if self._pause_aware_sleep(self.click_delay):
                     return # 被停止，退出任务逻辑
                 
-            logger.info(f"[{self.get_task_name()}]任务逻辑自然退出。")
+            logger.info(f"[{self.get_task_name()}]任务逻辑自然退出。", mode=self.log_mode)
 
         except KeyboardInterrupt:
-            logger.info(f"[{self.get_task_name()}]任务被手动停止。")
+            logger.info(f"[{self.get_task_name()}]任务被手动停止。", mode=self.log_mode)
         return # 任务逻辑结束
 
     def start(self):
@@ -130,7 +130,7 @@ class LunJian(TemplateMatchingTask):
             self._running = True
             self._stop_event.clear()  # 确保停止事件未设置
             self.clicked_templates.clear()  # 启动时清空点击记录
-            logger.info(f"任务 {self.get_task_name()} 已启动")
+            logger.info(f"任务 {self.get_task_name()} 已启动", mode=self.log_mode)
 
     def stop(self):
         """停止任务."""
@@ -138,10 +138,12 @@ class LunJian(TemplateMatchingTask):
             self._running = False
             self._stop_event.set()  # 设置停止事件
             self.clicked_templates.clear()  # 停止时清空点击记录
-            logger.info(f"任务 {self.get_task_name()} 已停止")
+            logger.info(f"任务 {self.get_task_name()} 已停止", mode=self.log_mode)
 
     def __str__(self):
-        """返回任务的字符串表示."""
+        """
+        返回任务的字符串表示.
+        """
         completed, total, percentage = self.get_progress()
         return f"LunJian(name={self.get_task_name()}(论剑), running={self._running}, progress={completed}/{total}({percentage:.1f}%))"
     

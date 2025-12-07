@@ -2,6 +2,7 @@ import threading
 import win32gui
 import re
 import time
+from multiprocessing import Process, Queue
 from typing import Optional
 from PySide6.QtCore import QObject, Signal
 from src.tasks.ri_chang_fu_ben import RiChangFuBen
@@ -19,10 +20,11 @@ class TaskModel(QObject):
     # 定义信号，用于通知 UI 状态变化
     status_changed = Signal(str)            # 状态（如“运行中”，“已停止”）变化时发送
     progress_changed = Signal(int)          # 进度条数值变化时发送
-    running_task_changed = Signal(str)      # 当前运行任务变化时发送
+    running_task_changed = Signal(str, int) # 当前运行任务变化时发送
     run_list_changed = Signal()             # 运行列表增删改时发送（通知 UI 刷新列表）
     connect_window_changed = Signal(str)    # 连接窗口信号，参数为窗口标题
     queue_paused_changed = Signal(bool)     # 队列暂停状态变化时发送，参数为暂停状态（True/False）
+    test_signal = Signal(str)
 
     # 任务名称到任务类的映射
     TASK_MAP = {
@@ -30,10 +32,11 @@ class TaskModel(QObject):
         "论剑": LunJian
     }
     
-    def __init__(self, parent=None): # 允许传入父对象
+    def __init__(self, parent=None, log_mode: int = 0, multi_run_mode: bool = False, hwnd=None, name: str = ""):
         super().__init__(parent)
         self._run_list = []                                         # 私有变量，存储任务实例
         self._running_task_name = "无"                              # 当前正在运行的任务名称
+        self.name = name                                            # 任务模型名称, 仅用于多开区分
         self._status = "待机"                                       # 当前任务状态
         self._progress = 0                                          # 当前任务进度
         self._is_queue_running = False                              # 队列是否在运行
@@ -45,7 +48,9 @@ class TaskModel(QObject):
 
         self.wincap = WindowCapture()                               # 窗口捕获器
         self.clicker = AutoClicker()                                # 自动点击器
-        self.hwnd = None                                            # 窗口句柄
+        self.hwnd = hwnd                                            # 窗口句柄
+        self.log_mode = log_mode                                    # 日志模式
+        self.multi_run_mode = multi_run_mode                        # 多开模式
 
         # 用于任务队列多线程控制
         self._queue_thread: Optional[threading.Thread] = None       # 任务队列线程
@@ -58,7 +63,7 @@ class TaskModel(QObject):
     # --- 初始化/配置相关 ---
     def load_task_cfg(self):
         """
-        从任务配置模型加载任务配置.
+        加载任务配置.
         """
         self.window_title = task_cfg_model.task_cfg["window_title"]
         self.thread_timeout = task_cfg_model.task_cfg["timeout"]
@@ -69,7 +74,23 @@ class TaskModel(QObject):
         """
         尝试查找并连接到目标窗口，并更新状态.
         """
-        logger.info(f"正在尝试连接窗口: {self.window_title}, 句柄: {self.hwnd}...")
+        if self.multi_run_mode:
+            if not self.hwnd:
+                logger.error("多开模式下未指定窗口句柄", mode=self.log_mode)
+                print(f"多开模式下未指定窗口句柄: {self.hwnd}")
+                return False
+            try:
+                self.wincap.set_hwnd(self.hwnd)
+                self.clicker.set_hwnd(self.hwnd)
+                self.clicker.connect_window()
+                window_name = win32gui.GetWindowText(self.hwnd)
+                return True
+            except Exception as e:
+                error_msg = f"多开模式下连接窗口失败: {e}"
+                logger.error(error_msg, mode=self.log_mode)
+                return False
+            
+        logger.info(f"正在尝试连接窗口: {self.window_title}, 句柄: {self.hwnd}...", mode=1)
         
         if self.hwnd:
             self.wincap.set_hwnd(self.hwnd)
@@ -77,15 +98,15 @@ class TaskModel(QObject):
             self.clicker.connect_window()
             window_name = win32gui.GetWindowText(self.hwnd)
             if self.clicker.window: 
-                logger.info(f"窗口连接成功: {window_name}, 句柄: {self.hwnd}")
+                logger.info(f"窗口连接成功: {window_name}, 句柄: {self.hwnd}", mode=self.log_mode)
                 self.connect_window_changed.emit(window_name) # 发送连接成功信号
                 return True
             else:
-                logger.error(f"窗口句柄找到，但 AutoClicker 无法连接。")
+                logger.error(f"窗口句柄找到，但 AutoClicker 无法连接。", mode=self.log_mode)
                 return False
         else:
             self.set_status("未找到窗口")
-            logger.error(f"未找到目标窗口: {self.window_title}")
+            logger.error(f"未找到目标窗口: {self.window_title}", mode=self.log_mode)
             return False
 
     def get_target_window_handles(self, target_title_part: str) -> list:
@@ -122,7 +143,7 @@ class TaskModel(QObject):
         # 调用 EnumWindows 开始枚举所有顶级窗口
         win32gui.EnumWindows(callback, None)
         
-        logger.info(f"找到 {len(target_handles)} 个匹配窗口: {target_handles}")
+        logger.info(f"找到 {len(target_handles)} 个匹配窗口: {target_handles}", mode=self.log_mode)
         return target_handles
 
     def create_task_instance(self, task_name: str):
@@ -138,11 +159,11 @@ class TaskModel(QObject):
         try:
             task_class = self.TASK_MAP.get(task_name)
             if task_class:
-                # 💡 关键改进：在这里创建任务实例。后续还需要传入配置和窗口标题。
-                task_instance = task_class(config=task_cfg_model.task_cfg) 
+                # 创建任务实例
+                task_instance = task_class(config=task_cfg_model.task_cfg, log_mode=self.log_mode) 
             return task_instance
         except Exception as e:
-            logger.error(f"创建任务实例时出错: {task_name}, 错误: {e}")
+            logger.error(f"创建任务实例时出错: {task_name}, 错误: {e}", mode=self.log_mode)
             return None
         
     def update_task_cfg(self, cfg: dict):
@@ -155,9 +176,9 @@ class TaskModel(QObject):
         try:
             for task in self._run_list:
                 task.update_config(cfg)
-            logger.info(f"已同步更新列表中所有任务配置.")
+            logger.info(f"已同步更新列表中所有任务配置.", mode=self.log_mode)
         except Exception as e:
-            logger.error(f"更新任务配置时出错: {e}")
+            logger.error(f"更新任务配置时出错: {e}", mode=self.log_mode)
 
     # --- 运行列表管理 ---
 
@@ -173,10 +194,23 @@ class TaskModel(QObject):
             task = self.create_task_instance(task_name)
             if task:
                 self._run_list.append(task)
-                logger.info(f"添加任务: {task_name}")
+                logger.info(f"添加任务: {task_name}", mode=1)
                 self.run_list_changed.emit() # 通知 UI 刷新列表
         except Exception as e:
-            logger.error(f"添加任务时出错: {task_name}, 错误: {e}")
+            logger.error(f"添加任务时出错: {task_name}, 错误: {e}", mode=self.log_mode)
+
+    def add_task_multiple(self, task_list: list):
+        """
+        添加多个任务实例到运行列表。
+        """
+        try:
+            self._run_list.clear()
+            for task_name in task_list:
+                task = self.create_task_instance(task_name)
+                if task:
+                    self._run_list.append(task)
+        except Exception as e:
+            logger.error(f"添加多个任务时出错: {task_list}, 错误: {e}", mode=self.log_mode)
 
     def remove_task_by_index(self, index: int):
         """
@@ -186,10 +220,10 @@ class TaskModel(QObject):
             if 0 <= index < len(self._run_list):
                 task_name = self._run_list[index].get_task_name()
                 self._run_list.pop(index)
-                logger.info(f"移除任务: {task_name}")
+                logger.info(f"移除任务: {task_name}", mode=1)
                 self.run_list_changed.emit() # 通知 UI 刷新列表
         except Exception as e:
-            logger.error(f"移除任务时出错: {index}, 错误: {e}")
+            logger.error(f"移除任务时出错: {index}, 错误: {e}", mode=self.log_mode)
 
     def clear_run_list(self):
         """
@@ -197,10 +231,10 @@ class TaskModel(QObject):
         """
         try:
             self._run_list.clear()
-            logger.info("已清空运行列表中的所有任务实例。")
+            logger.info("已清空运行列表中的所有任务实例。", mode=1)
             self.run_list_changed.emit() # 通知 UI 刷新列表
         except Exception as e:
-            logger.error(f"清空运行列表时出错: {e}")
+            logger.error(f"清空运行列表时出错: {e}", mode=self.log_mode)
     
     def move_task(self, from_index: int, to_index: int):
         """
@@ -212,10 +246,10 @@ class TaskModel(QObject):
                 to_name = self._run_list[to_index].get_task_name()
                 task = self._run_list.pop(from_index)
                 self._run_list.insert(to_index, task)
-                logger.info(f"移动任务: {from_name} -> {to_name}")
+                logger.info(f"移动任务: {from_name} -> {to_name}", mode=1)
                 self.run_list_changed.emit() # 通知 UI 刷新列表
         except Exception as e:
-            logger.error(f"移动任务时出错: {from_index} -> {to_index}, 错误: {e}")
+            logger.error(f"移动任务时出错: {from_index} -> {to_index}, 错误: {e}", mode=self.log_mode)
     
     # --- 任务队列相关 ---
     def start_queue(self):
@@ -223,16 +257,16 @@ class TaskModel(QObject):
         开始运行任务队列。
         """
         if self._is_queue_running:
-            logger.warning("任务队列已在运行中。")
+            logger.warning("任务队列已在运行中。", mode=self.log_mode)
             return
 
         if not self._run_list:
-            logger.warning("任务列表为空，无法启动。")
+            logger.warning("任务列表为空，无法启动。", mode=self.log_mode)
             self.set_status("未运行")
             return
         
         if self.hwnd is None:
-            logger.warning("窗口句柄为空，尝试连接窗口...")
+            logger.warning("窗口句柄为空，尝试连接窗口...", mode=self.log_mode)
             if not self.connect_window():
                 self.set_status("启动失败：窗口未连接")
             return
@@ -243,25 +277,27 @@ class TaskModel(QObject):
         # 创建并启动线程
         self._queue_thread = threading.Thread(target=self._run_task_queue, daemon=True)
         self._queue_thread.start()
-        logger.info("任务队列已启动...")
+        logger.info("任务队列已启动...", mode=1)
 
     def stop_queue(self):
         """
         停止运行任务队列。
         """
         if not self._is_queue_running:
-            logger.warning("任务队列未在运行中。")
             return
             
         # 设置停止事件
         self._stop_event.set()
+        with self._pause_condition:
+            self.set_queue_paused(False) 
+            self._pause_condition.notify_all() # 唤醒等待的线程
         
         # 尝试停止当前正在运行的任务实例
         if 0 <= self._current_task_index < len(self._run_list):
             current_task = self._run_list[self._current_task_index]
             current_task.stop() 
 
-        logger.info("任务队列正在停止...")
+        logger.info("任务队列正在停止...", mode=1)
 
 
     def _run_task_queue(self):
@@ -272,11 +308,13 @@ class TaskModel(QObject):
         total_tasks = len(self._run_list)
         
         current_loop = 0 # 记录当前循环次数
+        all_loop_start_time = time.time() # 记录所有循环的开始时间
+        all_loop_total_time = 0 # 记录所有循环的总耗时
         
         try:
             # 外部循环：控制总的运行次数
             while current_loop < self.loop_count and not self._stop_event.is_set():
-                logger.info(f"--- 开始第 {current_loop + 1} 次循环 (共 {self.loop_count} 次) ---")
+                logger.info(f"--- 开始第 {current_loop + 1} 次循环 (共 {self.loop_count} 次) ---", mode=self.log_mode)
                 # 计时器开始，用于计算每轮任务执行消耗的时间
                 start_time = time.time()
                 total_time = 0 # 累计每轮任务总耗时
@@ -284,16 +322,20 @@ class TaskModel(QObject):
                 # 内部循环：迭代任务列表
                 for index, task in enumerate(self._run_list):
 
-                    # ⚡ 暂停检查点：在每个任务开始前检查是否需要暂停
+                    # 暂停检查点：在每个任务开始前检查是否需要暂停
                     with self._pause_condition:
                         while self._is_queue_paused:
                             self.set_status("已暂停") # 确保状态更新到 UI
                             # 线程在此阻塞，直到 resume_queue() 调用 notify() 
                             # 并且 _is_queue_paused 被设置为 False
                             self._pause_condition.wait()
+                            if self._stop_event.is_set():
+                                logger.info("接收到停止信号，任务队列中止。", mode=self.log_mode)
+                                break 
+                            
                     # 检查总停止信号
                     if self._stop_event.is_set():
-                        logger.info("接收到停止信号，任务队列中止。")
+                        logger.info("接收到停止信号，任务队列中止。", mode=self.log_mode)
                         break 
 
                     self._current_task_index = index
@@ -305,13 +347,13 @@ class TaskModel(QObject):
                         # 注入超时时间
                         if hasattr(task, 'set_timeout'):
                             task.set_timeout(self.thread_timeout)
-                            
+
                     except Exception as e:
-                        logger.error(f"任务 {task_name} 依赖配置失败: {e}")
+                        logger.error(f"任务 {task_name} 依赖配置失败: {e}", mode=self.log_mode)
                         continue
 
-                    logger.info(f"开始运行任务: {task_name} (超时限制: {self.thread_timeout}秒)")
-                    self.set_running_task(task_name)
+                    logger.info(f"开始运行任务: {task_name} (超时限制: {self.thread_timeout}秒)", mode=self.log_mode)
+                    self.set_running_task(task_name, index)
 
                     # 任务执行
                     try:
@@ -321,7 +363,7 @@ class TaskModel(QObject):
                             task.start()
                             
                     except Exception as e:
-                        logger.error(f"任务 {task_name} 运行时发生错误: {e}")
+                        logger.error(f"任务 {task_name} 运行时发生错误: {e}", mode=self.log_mode)
                     
                     # 任务结束/清理 (确保任务停止)
                     task.stop() # 清理任务内部状态
@@ -332,43 +374,45 @@ class TaskModel(QObject):
                     end_time = time.time()
                     round_time = end_time - start_time
                     total_time += round_time
-                    logger.info(f"任务 {task_name} 完成。本轮耗时: {round_time:.2f}秒")
+                    logger.info(f"任务 {task_name} 完成。耗时: {round_time:.2f}秒", mode=self.log_mode)
 
                 # 队列自然完成一次循环
                 if not self._stop_event.is_set():
                     current_loop += 1
                     self.set_progress(0) # 每轮结束后重置进度条
-                    logger.info(f"第 {current_loop} 次循环完成，总耗时: {total_time:.2f}秒")                
+                    logger.info(f"第 {current_loop} 次循环完成，耗时: {total_time:.2f}秒", mode=self.log_mode)                
             # 循环结束后的状态处理
             if not self._stop_event.is_set():
                 self.set_status("队列已完成")
-                logger.info(f"所有任务执行完毕，共运行 {current_loop} 次。")
+                logger.info(f"所有任务执行完毕，共运行 {current_loop} 次。", mode=self.log_mode)
             else:
                 self.set_status("已停止")
-                logger.info(f"任务队列已停止，共运行 {current_loop} 次。")
+                logger.info(f"任务队列已停止，共运行 {current_loop} 次。", mode=self.log_mode)
         
         finally:
             self.set_queue_running(False) # 最终设置为未运行
             # 确保在退出线程时，唤醒 Condition，防止其他线程在此等待
+            all_loop_total_time = time.time() - all_loop_start_time
+            logger.info(f"总耗时: {all_loop_total_time:.2f}秒", mode=self.log_mode)
             with self._pause_condition:
-                self._pause_condition.notify_all()
+             self._pause_condition.notify_all()
             self.set_queue_paused(False) # 重置暂停状态
             self.set_progress(0)
-            self.set_running_task("无")
+            self.set_running_task("无", -1)
             self._current_task_index = -1
             self._queue_thread = None # 清理线程引用
-
+        
     def pause_queue(self):
         """
         暂停任务队列的执行.
         """
         if self._is_queue_running and not self._is_queue_paused:
             self._is_queue_paused = True
-            logger.info("任务队列已暂停...")
+            logger.info("任务队列已暂停...", mode=1)
             self.queue_paused_changed.emit(True)
             self.set_status("已暂停")
         else:
-            logger.warning("任务未运行或已暂停，无法执行暂停操作。")
+            logger.warning("任务未运行或已暂停，无法执行暂停操作。", mode=self.log_mode)
 
     def resume_queue(self):
         """
@@ -378,12 +422,13 @@ class TaskModel(QObject):
             # 必须在 Condition 锁内修改状态并通知
             with self._pause_condition:
                 self._is_queue_paused = False
-                logger.info("任务队列已恢复运行...")
+                logger.info("任务队列已恢复运行...", mode=1)
                 self.queue_paused_changed.emit(False)
+                self.set_status("运行中")
                 # set_status 会在 _run_task_queue 恢复后更新
                 self._pause_condition.notify_all() # 唤醒等待的线程
         else:
-            logger.warning("任务未运行或未处于暂停状态，无法执行恢复操作。")
+            logger.warning("任务未运行或未处于暂停状态，无法执行恢复操作。", mode=self.log_mode)
 
     # --- getters/setters ---
     def set_progress(self, progress: int):
@@ -420,13 +465,14 @@ class TaskModel(QObject):
         """
         return self.window_title
     
-    def set_running_task(self, task_name: str):
+    def set_running_task(self, task_name: str, index: int):
         """
         设置当前运行任务，并发送信号。
         """
-        if self._running_task_name != task_name:
+        if self._running_task_name != task_name or self._current_task_index != index:
             self._running_task_name = task_name
-            self.running_task_changed.emit(task_name)
+            self._current_task_index = index
+            self.running_task_changed.emit(task_name, index)
     
     def get_running_task(self) -> str:
         """
@@ -451,6 +497,8 @@ class TaskModel(QObject):
         设置任务队列的暂停状态
         """
         self._is_queue_paused = state
+        if self.multi_run_mode:
+            return
         self.queue_paused_changed.emit(state)
 
     def set_queue_running(self, state: bool):
@@ -474,3 +522,46 @@ class TaskModel(QObject):
             hwnd (int): 窗口句柄.
         """
         self.hwnd = hwnd
+
+    def set_log_mode(self, log_mode: int):
+        """
+        设置日志模式。
+        
+        Args:
+            log_mode (int): 新的日志模式。
+        """
+        if self.log_mode != log_mode:
+            self.log_mode = log_mode
+            logger.info(f"日志模式已设置为 {log_mode}", mode=self.log_mode)
+            self.set_all_task_log_mode(log_mode)
+
+    def set_all_task_log_mode(self, log_mode: int):
+        """
+        设置运行列表中所有任务的日志模式。
+        
+        Args:
+            log_mode (int): 新的日志模式。
+        """
+        try:
+            for task in self._run_list:
+                if hasattr(task, 'set_log_mode'):
+                    task.set_log_mode(log_mode)
+            logger.info(f"已同步更新列表中所有任务的日志模式为 {log_mode}.", mode=self.log_mode)
+        except Exception as e:
+            logger.error(f"更新任务日志模式时出错: {e}", mode=self.log_mode)
+
+    def set_multi_run_mode(self, state: bool):
+        """
+        设置多开模式.
+        
+        Args:
+            state (bool): 是否启用多开模式.
+        """
+        self.multi_run_mode = state
+
+    def get_run_task_list_names(self) -> list[str]:
+            """
+            获取当前任务运行列表中的任务名称（用于序列化传输）.
+            """
+            return [task.get_task_name() for task in self._run_list]
+    

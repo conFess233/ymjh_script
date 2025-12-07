@@ -14,6 +14,7 @@ class SettingsModel(QObject):
         self.file_path = os.path.abspath(file_path)
         self.settings = {
             "theme": "light",
+            "auto_save": True,
         }
         
         self.load_settings()
@@ -85,3 +86,15 @@ class SettingsModel(QObject):
         获取当前设置的主题.
         """
         return self.settings["theme"]
+    
+    def get_auto_save(self) -> bool:
+        """
+        获取当前设置的自动保存日志.
+        """
+        return self.settings["auto_save"]
+    
+    def set_auto_save(self, auto_save: bool):
+        """
+        设置自动保存日志.
+        """
+        self.settings["auto_save"] = auto_save

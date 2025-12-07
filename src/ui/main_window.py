@@ -8,6 +8,7 @@ from .pages.page_task import PageScript
 from .pages.page_setting import PageSetting
 from .core.theme_manager import theme_manager
 from .models.settings_model import SettingsModel
+from .pages.page_multiple import PageMultiple
 
 class MainWindow(QMainWindow):
     """
@@ -32,9 +33,10 @@ class MainWindow(QMainWindow):
 
         self.btn_dir = QPushButton("使用说明")
         self.btn_script = QPushButton("脚本执行")
+        self.btn_multiple = QPushButton("多开")
         self.btn_setting = QPushButton("设置")
 
-        for btn in [self.btn_dir, self.btn_script, self.btn_setting]:
+        for btn in [self.btn_dir, self.btn_script, self.btn_multiple, self.btn_setting]:
             btn.setMinimumHeight(40)
             self.nav_layout.addWidget(btn)
         self.nav_layout.addStretch()
@@ -48,21 +50,25 @@ class MainWindow(QMainWindow):
         # 页面
         self.page_dir = PageDir()
         self.page_script = PageScript()
+        self.page_multiple = PageMultiple()
         self.page_setting = PageSetting(main_window=self)
 
         self.stack_layout.addWidget(self.page_dir)
         self.stack_layout.addWidget(self.page_script)
+        self.stack_layout.addWidget(self.page_multiple)
         self.stack_layout.addWidget(self.page_setting)
         # 映射
         self.page_dict = {
             "dir": (self.page_dir, self.btn_dir),
             "script": (self.page_script, self.btn_script),
+            "multiple": (self.page_multiple, self.btn_multiple),
             "setting": (self.page_setting, self.btn_setting)
         }
 
         # 按钮绑定
         self.btn_dir.clicked.connect(lambda: self.switch_page("dir"))
         self.btn_script.clicked.connect(lambda: self.switch_page("script"))
+        self.btn_multiple.clicked.connect(lambda: self.switch_page("multiple"))
         self.btn_setting.clicked.connect(lambda: self.switch_page("setting"))
         self.switch_page("dir")
 
@@ -87,6 +93,17 @@ class MainWindow(QMainWindow):
             b.setStyleSheet("")
         btn.setEnabled(False)
         btn.setStyleSheet("background-color: #0078D7; color: white; font-weight: bold;")
+
+    def closeEvent(self, event):
+        from .core.mutiple_manager import MultipleProcessManager
+        self.manager: MultipleProcessManager = self.page_multiple.manager
+        try:
+            self.manager.ipc_thread.stop()
+            self.manager.ipc_thread.wait(1000)
+        except:
+            pass
+
+        super().closeEvent(event)
 
 def is_admin() -> bool:
     """

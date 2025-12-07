@@ -1,5 +1,6 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFormLayout, QComboBox
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFormLayout, QComboBox, QCheckBox
 from ..models.settings_model import SettingsModel
+from ..core.logger import logger
 
 class PageSetting(QWidget):
     """
@@ -27,8 +28,13 @@ class PageSetting(QWidget):
         # 主题切换信号连接到应用主题方法
         self.theme_combo.currentIndexChanged.connect(self.apply_theme)
 
+        self.auto_save_checkbox = QCheckBox()
+        self.auto_save_checkbox.setChecked(self.settings_model.get_auto_save())
+        self.auto_save_checkbox.stateChanged.connect(self.set_auto_save)
+
         # 将主题和字体控件添加到表单布局
         self.form.addRow("界面主题:", self.theme_combo)
+        self.form.addRow("自动保存日志:", self.auto_save_checkbox)
         # 将表单布局和弹性空间添加到主布局
         self.v.addWidget(self.inner)
         self.v.addStretch()
@@ -41,3 +47,10 @@ class PageSetting(QWidget):
             self.settings_model.apply_theme("light")
         else:
             self.settings_model.apply_theme("dark")
+
+    def set_auto_save(self, state):
+        """
+        设置自动保存日志.
+        """
+        self.settings_model.set_auto_save(state == 2)
+        logger.set_auto_save(state == 2)
