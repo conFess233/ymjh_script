@@ -67,7 +67,8 @@ pyinstaller -F -w --clean main.py --add-data "src/ui/core/styles.qss.template:."
 - 运行脚本时请确保一梦江湖客户端已经登录并且在主界面。
 - 如果脚本无法正常运行，请检查系统缩放，一般为125%。
 - 脚本运行时可操作其它窗口，但不要将游戏窗口最小化，这会导致系统停止渲染游戏画面，导致脚本无法正常运行。
-- 目前多开功能还没有经过测试，可能会出现一些问题。
+- 目前多开功能经过测试，应该能用。
+- 推荐将匹配阈值修改到0.70左右。
 
 ## 预定添加的功能
 - <input type="checkbox" checked="true" disabled="true">暂停</input>
