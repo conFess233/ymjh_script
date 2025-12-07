@@ -5,6 +5,8 @@
 ## 使用方法
 >这个脚本目前仅支持windows的一梦江湖pc端
 
+>建议直接下载打包版，即开即用。https://github.com/conFess233/ymjh_script/releases
+
 1. 安装python环境
 >https://www.python.org/ftp/python/3.13.7/python-3.13.7-amd64.exe
 
@@ -12,7 +14,7 @@
 ```
 git clone https://github.com/conFess233/ymjh_script.git
 ```
->或者直接下载zip文件并解压: https://github.com/conFess233/ymjh_script/archive/refs/heads/main.zip
+>或者直接下载源码: https://github.com/conFess233/ymjh_script/archive/refs/heads/main.zip
 
 >以下操作建议使用Powershell(管理员)或cmd(管理员)进行，否则百分百会出问题
 ><br>如果使用vscode, PyCharm等, 用管理员权限打开即可。
