@@ -9,6 +9,7 @@ from .pages.page_setting import PageSetting
 from .core.theme_manager import theme_manager
 from .models.settings_model import SettingsModel
 from .pages.page_multiple import PageMultiple
+from .core.logger import logger
 
 class MainWindow(QMainWindow):
     """
@@ -95,13 +96,25 @@ class MainWindow(QMainWindow):
         btn.setStyleSheet("background-color: #0078D7; color: white; font-weight: bold;")
 
     def closeEvent(self, event):
-        from .core.mutiple_manager import MultipleProcessManager
-        self.manager: MultipleProcessManager = self.page_multiple.manager
-        try:
-            self.manager.ipc_thread.stop()
-            self.manager.ipc_thread.wait(1000)
-        except:
-            pass
+        """
+        窗口关闭事件：在此处清理所有线程，防止报错或残留
+        """
+        logger.info("程序正在退出，开始清理线程...", mode=1)
+
+        # 清理多开页面的所有任务线程
+        if hasattr(self.page_multiple, 'manager'):
+            self.page_multiple.manager.clear_items()
+
+        # 清理脚本执行页面的任务线程
+        if hasattr(self.page_script, 'model'):
+            # 如果正在运行，先停止
+            self.page_script.model.stop_queue()
+            # 等待内部 Python 线程结束，防止它在 QObject 销毁后继续发射信号
+            if hasattr(self.page_script.model, 'wait_for_stop'):
+                self.page_script.model.wait_for_stop(timeout=1.0)
+
+        # 确保日志等资源保存
+        logger.save_log_to_file()
 
         super().closeEvent(event)
 

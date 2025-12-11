@@ -180,6 +180,13 @@ class TaskModel(QObject):
         except Exception as e:
             logger.error(f"更新任务配置时出错: {e}", mode=self.log_mode)
 
+    def wait_for_stop(self, timeout=2.0):
+        """
+        等待内部任务线程完全退出
+        """
+        if self._queue_thread and self._queue_thread.is_alive():
+            self._queue_thread.join(timeout)
+
     # --- 运行列表管理 ---
 
     def get_run_list(self) -> list:
@@ -316,7 +323,7 @@ class TaskModel(QObject):
             while current_loop < self.loop_count and not self._stop_event.is_set():
                 logger.info(f"--- 开始第 {current_loop + 1} 次循环 (共 {self.loop_count} 次) ---", mode=self.log_mode)
                 # 计时器开始，用于计算每轮任务执行消耗的时间
-                start_time = time.time()
+                loop_start_time = time.time()
                 total_time = 0 # 累计每轮任务总耗时
                 
                 # 内部循环：迭代任务列表
@@ -354,6 +361,7 @@ class TaskModel(QObject):
 
                     logger.info(f"开始运行任务: {task_name} (超时限制: {self.thread_timeout}秒)", mode=self.log_mode)
                     self.set_running_task(task_name, index)
+                    task_start_time = time.time()
 
                     # 任务执行
                     try:
@@ -371,16 +379,16 @@ class TaskModel(QObject):
                     # 更新进度
                     progress_value = int((index + 1) / total_tasks * 100)
                     self.set_progress(progress_value)
-                    end_time = time.time()
-                    round_time = end_time - start_time
-                    total_time += round_time
-                    logger.info(f"任务 {task_name} 完成。耗时: {round_time:.2f}秒", mode=self.log_mode)
+                    task_end_time = time.time()
+                    task_duration = task_end_time - task_start_time
+                    logger.info(f"任务 {task_name} 完成。耗时: {task_duration:.2f}秒", mode=self.log_mode)
 
                 # 队列自然完成一次循环
                 if not self._stop_event.is_set():
                     current_loop += 1
                     self.set_progress(0) # 每轮结束后重置进度条
-                    logger.info(f"第 {current_loop} 次循环完成，耗时: {total_time:.2f}秒", mode=self.log_mode)                
+                    loop_total_duration = time.time() - loop_start_time
+                    logger.info(f"第 {current_loop} 次循环完成，耗时: {loop_total_duration:.2f}秒", mode=self.log_mode)                
             # 循环结束后的状态处理
             if not self._stop_event.is_set():
                 self.set_status("队列已完成")

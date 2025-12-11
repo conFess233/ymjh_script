@@ -1,11 +1,11 @@
 
-from multiprocessing import Queue
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QLabel, QComboBox, QGridLayout, QTextEdit, QTableView, QHeaderView, QAbstractItemView
 )
+from PySide6.QtGui import QTextCursor
 from PySide6.QtCore import QTimer
 from src.ui.core.logger import logger
-from src.ui.core.mutiple_manager import MultipleProcessManager, LogBridge
+from src.ui.core.mutiple_manager import MultipleProcessManager
 from ..widgets.task_list import MultipleTaskList
 from ..widgets.multiple_table_model import MultipleTabelModel
 from ..core.theme_manager import theme_manager
@@ -18,10 +18,7 @@ class PageMultiple(QWidget):
     """
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.log_queue = Queue()
-        self.log_bridge = LogBridge(self.log_queue)
         self.manager = MultipleProcessManager()
-        self.manager.log_queue = self.log_queue # type: ignore
         self.initial_tasks = []
         self.log_mode = 3
 
@@ -103,6 +100,7 @@ class PageMultiple(QWidget):
         self.resume_btn.setEnabled(False)
         self.pause_all_btn.setEnabled(False)
         self.resume_all_btn.setEnabled(False)
+        self.change_task_btn.setEnabled(False)
         
         # 日志显示区域
         self.log_area = QTextEdit()
@@ -180,45 +178,8 @@ class PageMultiple(QWidget):
         self.clear_task_btn.clicked.connect(lambda: self.task_list.clear())
         self.change_task_cfg_btn.clicked.connect(self.open_script_cfg)
         self.change_task_btn.clicked.connect(lambda: self.on_task_list_modified())
+        self.manager.task_status_changed.connect(self.handle_task_model_status_update)
         logger.log_multiprocess_signal.connect(self.display_log_message)
-
-    def _connect_all_item_signals(self):
-        """
-        连接所有 ProcessItem 的 task_model_status_signal
-        """
-        # 记录当前仍然存活的 items
-        valid_items = set()
-
-        for hwnd, item in self.manager.items.items():
-
-            valid_items.add(id(item))
-
-            # 新 item → 连接
-            if not getattr(item, "is_connected", False):
-                item.task_model_status_signal.connect(
-                    self.handle_task_model_status_update
-                )
-                item.is_connected = True
-
-        # 清理：断开已经不属于 manager.items 的 ProcessItem
-        for old in getattr(self, "_connected_items", []):
-            if old not in valid_items:
-                # 找到对应的对象并断开信号
-                try:
-                    old_item = next(
-                        v for v in self.manager.items.values()
-                        if id(v) == old
-                    )
-                except StopIteration:
-                    continue
-
-                old_item.task_model_status_signal.disconnect(
-                    self.handle_task_model_status_update
-                )
-                old_item.is_connected = False
-
-        # 保存当前轮已连接的 items
-        self._connected_items = valid_items
 
 # --- 辅助方法 ---
     def show_window(self):
@@ -393,21 +354,21 @@ class PageMultiple(QWidget):
         self.manager.set_process_task_list(handle, tasks)
 
     def refresh_task_list(self):
+        """
+        刷新当前选中进程的任务列表.
+        """
         handle = self.get_current_handle()
         if not handle:
             # logger.warning("未选择任何进程。", mode=self.log_mode)
             return
 
-        # 异步请求
-        self.manager.request_task_list(handle, self._on_task_list_result)
-
-    def _on_task_list_result(self, result):
-        if not isinstance(result, list):
-            logger.warning("任务列表获取失败（IPC 超时或无效）", mode=self.log_mode)
+        tasks = self.manager.get_process_task_list(handle)
+        if not tasks:
+            logger.warning("任务列表为空", mode=self.log_mode)
             self.task_list.clear_list()
             return
 
-        self.task_list.set_list(result)
+        self.task_list.set_list(tasks)
         logger.info("任务列表已刷新", mode=1)
 
     def _update_button_status(self):
@@ -518,8 +479,6 @@ class PageMultiple(QWidget):
                 "current_run": item.task_model_status["current_task"],
                 "progress": item.task_model_status["progress"],
             })
-        
-        self._connect_all_item_signals()
 
     def _refresh_process_status(self, handle: int, status: dict):
         """
@@ -577,6 +536,14 @@ class PageMultiple(QWidget):
         html_message = f'<span style="color: {color};">{message}</span>'
         # 将 HTML 文本追加到 QTextEdit
         self.log_area.append(html_message)
+
+        # 限制最大显示块数，防止内存溢出
+        if self.log_area.document().blockCount() > 500:
+            cursor = self.log_area.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.Start)
+            cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+            cursor.removeSelectedText()
+            cursor.deleteChar() # 删除换行符
         # 滚动到底部
         self.log_area.ensureCursorVisible()
 

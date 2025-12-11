@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QGridLayout, QLabel, QComboBox, QProgressBar, QTextEdit, QVBoxLayout, QPushButton
-from PySide6.QtGui import QColor, QBrush
+from PySide6.QtGui import QColor, QBrush, QTextCursor
 from ..models.task_model import TaskModel
 from ..widgets.task_list import TaskList
 from .script_cfg_window import ScriptCfgWindow
@@ -162,6 +162,14 @@ class PageScript(QWidget):
         html_message = f'<span style="color: {color};">{message}</span>'
         # 将 HTML 文本追加到 QTextEdit
         self.log_area.append(html_message)
+
+        # 限制最大显示块数，防止内存溢出
+        if self.log_area.document().blockCount() > 500:
+            cursor = self.log_area.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.Start)
+            cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+            cursor.removeSelectedText()
+            cursor.deleteChar() # 删除换行符
         # 滚动到底部
         self.log_area.ensureCursorVisible()
 

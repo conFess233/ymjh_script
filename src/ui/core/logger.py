@@ -24,19 +24,7 @@ class _Logger(QObject):
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
                 atexit.register(cls._instance._auto_save) # 程序退出时自动保存日志
-                cls._process_queue = None # 进程队列
-                cls.process_queue_mode = False
         return cls._instance
-    
-    def set_process_queue(self, queue):
-        """
-        设置进程队列，用于多开窗口日志输出.
-
-        Args:
-            queue (Queue): 进程队列，用于存储日志消息.
-        """
-        self._process_queue = queue
-        self.process_queue_mode = True
 
     def log(self, message: str, type: str = "INFO", mode: int = 0):
         """
@@ -45,7 +33,7 @@ class _Logger(QObject):
         Args:
             message (str): 要发送的日志消息.
             type (str): 日志类型，默认值为 "INFO".
-            mode (int): 日志模式，0代表同时发送给ui和文件, 1代表仅保存到文件， 2代表只发送给ui，3代表多开窗口日志输出，默认值为0.
+            mode (int): 日志模式，0代表同时发送给ui和文件, 1代表仅保存到文件， 2代表只发送给ui，3代表多开窗口日志输出，4代表仅存到多开日志文件默认值为0.
         """
         ts = self.get_time()
         msg = f"{ts} [{type}] {message}"
@@ -53,11 +41,6 @@ class _Logger(QObject):
         # 仅保存到文件
         if mode == 1:
             self.add_log_to_cache(message=msg)
-            return
-
-        # 多开窗口日志输出，通过进程队列发送
-        if self._process_queue is not None:
-            self._process_queue.put((type, msg))
             return
         
         if mode == 0:
@@ -71,6 +54,9 @@ class _Logger(QObject):
             msg = f"[多开]{msg}"
             self.log_multiprocess_signal.emit(msg, type)
             self.add_log_to_cache(message=msg)
+        elif mode == 4:
+            msg = f"[多开]{msg}"
+            self.add_log_to_cache(message=msg)
 
 
     def info(self, message: str, mode: int = 0):
@@ -79,7 +65,7 @@ class _Logger(QObject):
 
         Args:
             message (str): 要发送的信息日志消息.
-            mode (int, optional): 日志模式，0代表同时发送给ui和文件, 1代表保存到文件， 2代表只发送给ui，默认值为0.
+            mode (int, optional): 日志模式
         """
         self.log(f"{message}", type="INFO", mode=mode)
 
@@ -89,7 +75,8 @@ class _Logger(QObject):
 
         Args:
             message (str): 要发送的错误日志消息.
-            mode (int, optional): 日志模式，0代表同时发送给ui和文件, 1代表保存到文件， 2代表只发送给ui，默认值为0."""
+            mode (int, optional): 日志模式
+        """
         self.log(f"{message}", type="ERROR", mode=mode)
 
     def warning(self, message: str, mode: int = 0):
@@ -98,7 +85,8 @@ class _Logger(QObject):
 
         Args:
             message (str): 要发送的警告日志消息.
-            mode (int, optional): 日志模式，0代表同时发送给ui和文件, 1代表保存到文件， 2代表只发送给ui，默认值为0.`"""
+            mode (int, optional): 日志模式
+        """
         self.log(f"{message}", type="WARN", mode=mode)
 
     def get_time(self):
