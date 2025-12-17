@@ -1,5 +1,6 @@
 from .template_maching_task import TemplateMatchingTask
 from ..ui.core.logger import logger
+import random
 
 class LunJian(TemplateMatchingTask):
     """
@@ -8,7 +9,7 @@ class LunJian(TemplateMatchingTask):
     自动执行论剑相关操作，进入论剑场景后立刻退出。
     """
     
-    TASK_NAME = "lun_jian"  # 论剑任务
+    TASK_NAME = "论剑"  # 论剑任务
 
     # 模板图片路径列表
     TEMPLATE_PATH_LIST = [
@@ -20,12 +21,15 @@ class LunJian(TemplateMatchingTask):
     ]
 
     def __init__(self, config: dict, log_mode: int = 0):
-        """初始化论剑任务."""
+        """
+        初始化论剑任务.
+        """
         # 调用父类初始化
         super().__init__(config, log_mode)
 
     def get_template_path_list(self) -> list:
-        """获取模板路径列表.
+        """
+        获取模板路径列表.
 
         Returns:
             list: 模板图片路径列表
@@ -33,7 +37,8 @@ class LunJian(TemplateMatchingTask):
         return self.TEMPLATE_PATH_LIST
 
     def get_base_window_size(self) -> tuple:
-        """获取基准窗口尺寸.
+        """
+        获取基准窗口尺寸.
 
         Returns:
             tuple: 基准窗口尺寸 (宽度, 高度)
@@ -41,21 +46,26 @@ class LunJian(TemplateMatchingTask):
         return self.base_window_size
 
     def get_task_name(self) -> str:
-        """获取任务名称.
+        """
+        获取任务名称.
 
         Returns:
             str: 任务名称
         """
-        return "论剑"
+        return self.TASK_NAME
 
     def execute_task_logic(self):
-        """执行具体的任务逻辑."""
+        """
+        执行具体的任务逻辑.
+        """
         
         # 验证模板文件
         if not self.validate_templates():
             logger.error(f"[{self.get_task_name()}]模板文件验证失败，任务无法启动", mode=self.log_mode)
             return
-
+        
+        self._pause_aware_sleep(2) # 任务开始前暂停两秒，防止ui无反应
+        
         try:
             while self.running:
                 
@@ -80,26 +90,27 @@ class LunJian(TemplateMatchingTask):
                     # 捕获截图并匹配模板
                     match_result = self.capture_and_match_template(template_path, None)
                     if match_result is None:
-                        # 捕获失败，继续下一个模板
                         # 如果捕获失败，等待重试时检查停止/超时
-                        if self._pause_aware_sleep(self.capture_retry_delay):
+                        if self._pause_aware_sleep(self.template_retry_delay):
                             return 
                         continue
                     
-                    center, match_val = match_result
+                    center, match_val, size = match_result
                     if center:
                         # 点击匹配到的模板
-                        if self.click_template(template_path, center):
+                        if self.click_template(template_path, center, size):
                             matched = True
                             logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}", mode=self.log_mode)
                             
                             # 特殊处理
                             # 如果点击确认，记录点击并退出循环
-                            if "que_ding.png" in template_path and "tui_chu_lun_jian.png" in self.clicked_templates:
+                            if "template_img/que_ding.png" in template_path and "template_img/tui_chu_lun_jian.png" in self.clicked_templates:
                                 logger.info(f"[{self.get_task_name()}]已执行退出副本操作，结束任务。", mode=self.log_mode)
                                 self.stop() # 停止任务，退出 while 循环
                                 return 
                             
+                            click_delay = random.uniform(max(self.click_delay - self.rand_delay, self.click_delay * 0.7), self.click_delay + self.rand_delay)
+                            self._pause_aware_sleep(click_delay)
                             break  # 找到一个匹配后跳出 for 循环
                     else:
                         # 模板匹配失败，等待重试时检查停止/超时
@@ -115,7 +126,9 @@ class LunJian(TemplateMatchingTask):
                 
                 # 等待下次循环
                 # 每次等待时检查是否停止或超时
-                if self._pause_aware_sleep(self.click_delay):
+                # 计算随机延迟
+                loop_delay = random.uniform(max(self.click_delay - self.rand_delay, self.click_delay), self.click_delay + self.rand_delay)
+                if self._pause_aware_sleep(loop_delay):
                     return # 被停止，退出任务逻辑
                 
             logger.info(f"[{self.get_task_name()}]任务逻辑自然退出。", mode=self.log_mode)
@@ -125,7 +138,9 @@ class LunJian(TemplateMatchingTask):
         return # 任务逻辑结束
 
     def start(self):
-        """启动任务."""
+        """
+        启动任务.
+        """
         if not self._running:
             self._running = True
             self._stop_event.clear()  # 确保停止事件未设置
@@ -133,7 +148,9 @@ class LunJian(TemplateMatchingTask):
             logger.info(f"任务 {self.get_task_name()} 已启动", mode=self.log_mode)
 
     def stop(self):
-        """停止任务."""
+        """
+        停止任务.
+        """
         if self._running:
             self._running = False
             self._stop_event.set()  # 设置停止事件

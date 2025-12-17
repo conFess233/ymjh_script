@@ -3,11 +3,11 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QLabel, QComboBox, QGridLayout, QTextEdit, QTableView, QHeaderView, QAbstractItemView
 )
 from PySide6.QtGui import QTextCursor
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QTimer, Qt
 from src.ui.core.logger import logger
 from src.ui.core.mutiple_manager import MultipleProcessManager
 from ..widgets.task_list import MultipleTaskList
-from ..widgets.multiple_table_model import MultipleTabelModel
+from ..widgets.multiple_table_model import MultipleTableModel
 from ..core.theme_manager import theme_manager
 from .script_cfg_window import ScriptCfgWindow
 from ..core.process_item import ProcessItem
@@ -105,10 +105,12 @@ class PageMultiple(QWidget):
         # 日志显示区域
         self.log_area = QTextEdit()
         self.log_area.setReadOnly(True)
+        self.log_area.setPlaceholderText("日志输出区域")
+        self.log_area.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
 
         # 进程列表
         self.process_view = QTableView()
-        self.table_model = MultipleTabelModel(self.initial_tasks)
+        self.table_model = MultipleTableModel(self.initial_tasks)
         self.process_view.setModel(self.table_model)
         self.process_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.process_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)

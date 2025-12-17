@@ -147,9 +147,9 @@ class MultipleTaskList(QListWidget):
     """
     task_moved_signal = Signal(int, int)
 
-    def __init__(self, palacehodler=""):
+    def __init__(self, placeholder=""):
         super().__init__()
-        self.palaceholder = palacehodler
+        self.placeholder = placeholder
 
         # 右键菜单
         self.setContextMenuPolicy(Qt.CustomContextMenu) # type: ignore
@@ -160,7 +160,7 @@ class MultipleTaskList(QListWidget):
         self.setAcceptDrops(True)
         self.setSortingEnabled(False)
         
-        self.setPlaceholderText(self.palaceholder)
+        self.setPlaceholderText(self.placeholder)
 
     def setPlaceholderText(self, text):
         """

@@ -187,6 +187,17 @@ class TaskModel(QObject):
         if self._queue_thread and self._queue_thread.is_alive():
             self._queue_thread.join(timeout)
 
+    def is_window_valid(self) -> int:
+        """
+        检查窗口句柄是否有效且可见。
+
+        Returns:
+            bool: 如果窗口句柄有效且可见，则为 True；否则为 False。
+        """
+        if not self.hwnd:
+            return 0
+        return win32gui.IsWindow(self.hwnd) and win32gui.IsWindowVisible(self.hwnd)
+
     # --- 运行列表管理 ---
 
     def get_run_list(self) -> list:
@@ -324,11 +335,15 @@ class TaskModel(QObject):
                 logger.info(f"--- 开始第 {current_loop + 1} 次循环 (共 {self.loop_count} 次) ---", mode=self.log_mode)
                 # 计时器开始，用于计算每轮任务执行消耗的时间
                 loop_start_time = time.time()
-                total_time = 0 # 累计每轮任务总耗时
                 
                 # 内部循环：迭代任务列表
                 for index, task in enumerate(self._run_list):
-
+                    # 检查窗口是否有效
+                    if not self.is_window_valid():
+                        logger.error("窗口失效，请重新连接窗口", mode=self.log_mode)
+                        self.stop_queue()
+                        return
+                    
                     # 暂停检查点：在每个任务开始前检查是否需要暂停
                     with self._pause_condition:
                         while self._is_queue_paused:
@@ -375,7 +390,6 @@ class TaskModel(QObject):
                     
                     # 任务结束/清理 (确保任务停止)
                     task.stop() # 清理任务内部状态
-                    
                     # 更新进度
                     progress_value = int((index + 1) / total_tasks * 100)
                     self.set_progress(progress_value)

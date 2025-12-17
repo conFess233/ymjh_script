@@ -2,7 +2,7 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtWidgets import QTableView
 from PySide6.QtCore import Signal
 
-class MultipleTabelModel(QAbstractTableModel):
+class MultipleTableModel(QAbstractTableModel):
     """
     多开任务表格模型
     """

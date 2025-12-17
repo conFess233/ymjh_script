@@ -31,6 +31,7 @@ class ScriptCfgWindow(QDialog):
         self.match_loop_delay = QLabel("模板匹配循环等待时间(秒):")          # 模板匹配循环等待时间（秒）
         self.loop_count = QLabel("循环次数：")                              # 循环次数
         self.timeout = QLabel("任务超时时间(秒):")                          # 任务超时时间（秒）
+        self.rand_delay = QLabel("随机等待时间(秒):")                       # 随机等待时间（秒）
 
         # 创建目标窗口标题输入框，默认"一梦江湖"
         self.window_title_input = QLineEdit()
@@ -47,10 +48,10 @@ class ScriptCfgWindow(QDialog):
         self.bws_height_input.setSingleStep(10)
         self.bws_height_input.setValue(1440)
 
-        # 创建默认模板匹配阈值输入框，范围0.1-1.0，步长0.1，默认0.6
+        # 创建默认模板匹配阈值输入框，范围0.1-1.0，步长0.01，默认0.6
         self.mt_input = QDoubleSpinBox()
         self.mt_input.setRange(0.1, 1.0)
-        self.mt_input.setSingleStep(0.05)
+        self.mt_input.setSingleStep(0.01)
         self.mt_input.setValue(0.6)
 
         # 创建点击后等待时间输入框，范围0.1-10.0，步长0.1，默认3.0
@@ -89,6 +90,12 @@ class ScriptCfgWindow(QDialog):
         self.timeout_input.setSingleStep(10)
         self.timeout_input.setValue(600)
 
+        # 创建随机等待时间输入框，范围0.1-10.0，步长0.01，默认0.2
+        self.rand_delay_input = QDoubleSpinBox()
+        self.rand_delay_input.setRange(0.1, 10.0)
+        self.rand_delay_input.setSingleStep(0.01)
+        self.rand_delay_input.setValue(0.2)
+
         # 将各控件添加到主布局的指定位置
         self.main_layout.addWidget(self.base_window_size, 0, 0)
         self.main_layout.addWidget(self.bws_width_input, 0, 1)
@@ -118,7 +125,10 @@ class ScriptCfgWindow(QDialog):
         self.main_layout.addWidget(self.window_title, 8, 0)
         self.main_layout.addWidget(self.window_title_input, 8, 1, 1, 2)
 
-        self.main_layout.addWidget(accept_btn, 9, 2)
+        self.main_layout.addWidget(self.rand_delay, 9, 0)
+        self.main_layout.addWidget(self.rand_delay_input, 9, 1, 1, 2)
+
+        self.main_layout.addWidget(accept_btn, 10, 2)
 
         self.load_task_cfg()
 
@@ -138,6 +148,7 @@ class ScriptCfgWindow(QDialog):
         self.mld_input.setValue(task_cfg["match_loop_delay"])
         self.loop_count_input.setValue(task_cfg["loop_count"])
         self.timeout_input.setValue(task_cfg["timeout"])
+        self.rand_delay_input.setValue(task_cfg["rand_delay"])
     
     def apply_task_cfg(self):
         """
@@ -153,5 +164,6 @@ class ScriptCfgWindow(QDialog):
             "match_loop_delay": self.mld_input.value(),
             "loop_count": self.loop_count_input.value(),
             "timeout": self.timeout_input.value(),
+            "rand_delay": self.rand_delay_input.value(),
         })
         self.accept()

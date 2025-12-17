@@ -33,6 +33,7 @@ class _TaskCfgModel(QObject):
             "capture_retry_delay": 2,           # 捕获失败重试延迟（秒）
             "template_retry_delay": 0.5,        # 模板匹配失败重试延迟（秒）
             "match_loop_delay": 1,              # 模板匹配循环延迟（秒）
+            "rand_delay": 0.5,                  # 随机延迟范围（秒）
         }
 
         self.load_task_cfg()

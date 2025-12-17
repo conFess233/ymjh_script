@@ -8,6 +8,7 @@ import os
 import numpy as np
 import threading
 import time
+import random
 from ..ui.core.logger import logger
 
 class TemplateMatchingTask(Task):
@@ -42,6 +43,7 @@ class TemplateMatchingTask(Task):
         self.capture_retry_delay = config["capture_retry_delay"]            # 捕获失败重试延迟（秒）
         self.template_retry_delay = config["template_retry_delay"]          # 模板匹配失败重试延迟（秒）
         self.match_loop_delay = config["match_loop_delay"]                  # 模板匹配循环延迟（秒）
+        self.rand_delay = config["rand_delay"]                              # 随机等待时间，单位秒
 
         self.task_timeout = None                                            # 任务允许的最大运行时间（秒）
         self.start_time = None                                              # 任务开始运行的时间戳
@@ -58,6 +60,7 @@ class TemplateMatchingTask(Task):
         self._pause_condition: Optional[threading.Condition] = None         # 暂停任务的条件变量
         self._is_paused_check: Optional[Callable[[], bool]] = None          # 检查 Model 暂停状态的函数
 
+        self._load_templates()
 
     # --- 初始化/更新配置方法 ---
     def configure_window_access(self, wincap: WindowCapture, clicker: AutoClicker, pause_condition: threading.Condition, is_paused_check: Callable[[], bool]):
@@ -83,7 +86,24 @@ class TemplateMatchingTask(Task):
         self.capture_retry_delay = new_cfg["capture_retry_delay"]
         self.template_retry_delay = new_cfg["template_retry_delay"]
         self.match_loop_delay = new_cfg["match_loop_delay"]
+        self.rand_delay = new_cfg["rand_delay"]
         self.template_matcher.set_base_window_size(self.base_window_size)
+
+    def _load_templates(self):
+        """
+        预加载所有模板文件。
+
+        遍历模板路径列表，调用模板匹配器加载每个模板文件。
+        """
+
+        try:
+            template_list = self.get_template_path_list()
+            if not template_list:
+                logger.error("错误：模板路径列表为空")
+                return
+            self.template_matcher.load_templates_to_cache(template_list)
+        except Exception as e:
+            logger.error(f"加载模板文件时出错: {e}")
 
     def validate_templates(self) -> bool:
         """
@@ -124,7 +144,7 @@ class TemplateMatchingTask(Task):
         return screenshot
 
     def match_template(self, screenshot: np.ndarray, template_path: str, 
-                    screenshot_size: Optional[Tuple[int, ...]] = None) -> Optional[Tuple[Tuple[int, int], float]]:
+                    screenshot_size: tuple[int, int] | None = None) -> tuple[tuple[int, int], float, tuple[int, int] | None] | None:
         """
         使用模板匹配方法匹配指定模板。
 
@@ -157,13 +177,13 @@ class TemplateMatchingTask(Task):
         else:
             match_result = self.template_matcher.pyramid_template_match(screenshot)
 
-        center, match_val = match_result
+        center, match_val, size = match_result
         if center is None:
             return None
-        return (center, match_val)
+        return (center, match_val, size)
     
     def capture_and_match_template(self, template_path: str, 
-                                screenshot_size: Optional[Tuple[int, ...]] = None) -> Optional[Tuple[Tuple[int, int], float]]:
+                                screenshot_size: tuple[int, int] | None = None) -> tuple[tuple[int, int], float, tuple[int, int]] | None:
         """
         捕获截图并匹配指定模板。
 
@@ -172,12 +192,12 @@ class TemplateMatchingTask(Task):
 
         Args:
             template_path (str): 模板图片路径。
-            screenshot_size (Optional[Tuple[int, ...]]): 截图尺寸 (width, height)。
+            screenshot_size (Optional[tuple[int, int]]): 截图尺寸 (width, height)。
                 若为 None，则自动获取。
 
         Returns:
-            Optional[Tuple[Tuple[int, int], float]]: 
-                匹配结果 (中心坐标, 相似度)。未匹配到返回 None。
+            Optional[Tuple[Tuple[int, int], float, tuple[int, int]]]: 
+                匹配结果 (中心坐标, 相似度, 模板尺寸)。未匹配到返回 None。
         """
         # 捕获当前窗口图像
         screenshot = self.capture_screenshot()
@@ -218,53 +238,87 @@ class TemplateMatchingTask(Task):
         # 默认实现：不修改任何坐标
         return match_result
     
-    def match_multiple_templates(self, template_path_list: list, target_template: str, match_val_threshold: float = 0.6) -> Optional[Tuple[Tuple[int, int], float]]:
+    def match_multiple_templates(self, template_path_list: list, target_template: str, match_val_threshold: float = 0.6, direction: str = '', direction_size: int = 60) -> tuple[tuple[int, int], float, tuple[int, int] | None] | None:
         """
         匹配多个模板图片, 若所有图片都匹配成功, 则返回指定图片的坐标以及相似度
 
         Args:
-            template_path_list: 模板图片路径列表
-            match_val_threshold: 匹配相似度阈值
+            template_path_list(list): 模板图片路径列表
+            match_val_threshold(str): 匹配相似度阈值
+            direction(str): 指定匹配哪个区域的图片（上下左右, u w l r）
+            direction_size(int): 指定匹配区域的大小（百分比）
 
         Returns:
-            Optional[Tuple[Tuple[int, int], float]]: 
-                匹配结果 (中心坐标, 相似度)。未匹配到返回 None。
+            Optional[Tuple[Tuple[int, int], float, tuple[int, int]]]: 
+                匹配结果 (中心坐标, 相似度, 模板尺寸)。未匹配到返回 None。
         """
         screenshot = self.capture_screenshot()
         if screenshot is None:
             return None
+        
+        screenshot_size = self.get_screenshot_size(screenshot)
+        screenshot_w, screenshot_h = screenshot_size
         
         target_match_result = None
         for template_path in template_path_list:
             match_result = self.match_template(screenshot, template_path)
             if match_result is None or match_result[1] < match_val_threshold:
                 return None
-            if target_template in template_path:
-                target_match_result = match_result
+            else:
+                center_x, center_y = match_result[0]
+                if direction == 'r' and center_x < screenshot_w * (1 - direction_size / 100):
+                    return None
+                elif direction == 'l' and center_x > screenshot_w * (direction_size / 100):
+                    return None
+                elif direction == 'u' and center_y > screenshot_h * (direction_size / 100):
+                    return None
+                elif direction == 'w' and center_y < screenshot_h * (1 - direction_size / 100):
+                    return None
+                else:
+                    continue
+        if target_template in template_path:
+            target_match_result = match_result
+        else:
+            print(f"列表中没有模板 {target_template}")
+            return None
+        print(f"匹配到模板 {template_path}, 中心坐标: {match_result[0]}, 相似度: {match_result[1]}")
                 
         return target_match_result
 
-    def click_template(self, template_path: str, center: tuple) -> bool:
+    def click_template(self, template_path: str, center: tuple[int, int], size: tuple[int, int] | None = None) -> bool:
         """
         点击匹配到的模板。
 
         Args:
             template_path (str): 模板路径。
             center (tuple): 匹配到的中心坐标 (x, y)。
+            size (tuple | None): 模板尺寸 (w, h)。若为 None，则使用默认随机范围。
 
         Returns:
             bool: 点击成功返回 True，否则返回 False。
         """
         x, y = center
-        print(f"找到模板 {template_path}, 点击位置: ({x}, {y})")
-        
-        if self.auto_clicker.click(x, y):
+        # 计算动态随机范围
+        if size:
+            w, h = size
+            # 避开边缘 30%，即在中心 40% 区域内点击
+            rx = int(w * 0.4)
+            ry = int(h * 0.4)
+            # 确保至少有 1 像素的波动
+            rx = max(1, rx)
+            ry = max(1, ry)
+            r_range = (rx, ry)
+            # print(f"模板尺寸 {w}x{h}, 计算随机点击范围: X±{rx}, Y±{ry}")
+        else:
+            r_range = 5  # 默认兜底
+
+        if self.auto_clicker.click(x, y, random_range=r_range):
             self.add_clicked_template(template_path)
-            total_templates = len(self.get_template_path_list())
-            print(f"已点击的模板数量: {len(self.clicked_templates)}/{total_templates}")
+            # print(f"成功点击模板 {template_path}, 坐标: ({x}, {y})")
+            # print(f"已点击的模板: {self.clicked_templates}")
             return True
         else:
-            print(f"点击模板 {template_path} 失败")
+            # print(f"点击模板 {template_path} 失败, 坐标: ({x}, {y})")
             return False
 
 
@@ -292,10 +346,14 @@ class TemplateMatchingTask(Task):
             # wait 方法会在 event 被 set 时立即返回 True
             return self._stop_event.wait(delay)
     
-    def _pause_aware_sleep(self, delay: float) -> bool:
+    def _pause_aware_sleep(self, delay: float, is_random: bool = True) -> bool:
         """
         实现非阻塞等待，并在等待前和等待中检查 Model 层的暂停状态。
-        
+
+        Args:
+            delay: 延迟时间。
+            is_random: 是否使用随机延迟(默认为True)。
+    
         Returns:
             bool: 如果任务被要求停止，返回 True。
         """
@@ -314,40 +372,39 @@ class TemplateMatchingTask(Task):
         if not self._running:
             return True
 
+        # 随机延迟
+        if is_random:
+            delay = random.uniform(max(delay - self.rand_delay, delay * 0.8), delay + self.rand_delay)
         # 执行非阻塞延迟（在延迟期间仍然可以被 stop() 中断）
         return self._sleep(delay)
     
     def reset_clicked_templates(self):
         """
-        重置已点击的模板记录。"""
+        重置已点击的模板记录。
+        """
         self.clicked_templates.clear()
         print("已重置点击记录")
 
     # --- 任务控制方法 ---
     def start(self):
         """
-        启动任务。
-
-        若任务未运行，则置为运行状态并清空点击记录。
+        启动任务.
         """
         if not self._running:
             self._running = True
+            self._stop_event.clear()  # 确保事件未被设置
             self.clicked_templates.clear()  # 启动时清空点击记录
-            print(f"任务 {self.get_task_name()} 已启动")
-        else:
-            print(f"任务 {self.get_task_name()} 已经在运行")
+            logger.info(f"[{self.get_task_name()}]任务已启动", mode=self.log_mode)
 
     def stop(self):
         """
-        停止任务。
-
-        若任务正在运行，则设置为停止状态。
+        停止任务.
         """
         if self._running:
             self._running = False
-            print(f"任务 {self.get_task_name()} 已停止")
-        else:
-            print(f"任务 {self.get_task_name()} 未在运行")
+            self.clicked_templates.clear()  # 停止时清空点击记录
+            self._stop_event.set()  # 设置事件，通知任务停止
+            logger.info(f"[{self.get_task_name()}]任务已停止", mode=self.log_mode)
 
     @abstractmethod
     def execute_task_logic(self):
@@ -400,8 +457,8 @@ class TemplateMatchingTask(Task):
             bool: 当前任务是否正在运行。
         """
         return self._running
+    
     @abstractmethod
-
     def get_template_path_list(self) -> list:
         """
         获取模板路径列表。
@@ -413,15 +470,15 @@ class TemplateMatchingTask(Task):
         pass
 
     @abstractmethod
-    def get_task_name(self) -> str:
+    def get_task_name(self) -> str | None:
         """
         获取任务名称。
         子类需实现此方法，返回任务的名称。
 
         Returns:
-            str: 任务名称。
+            (str | None): 任务名称。
         """
-        pass
+        return self.TASK_NAME
     def get_base_window_size(self) -> tuple:
         """
         获取基准窗口尺寸。

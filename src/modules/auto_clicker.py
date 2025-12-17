@@ -1,6 +1,7 @@
 from pywinauto import Application
 from pywinauto.findwindows import ElementNotFoundError
-from time import sleep
+import random
+
 
 class AutoClicker:
     """
@@ -44,7 +45,7 @@ class AutoClicker:
         """
         self.hwnd = hwnd
 
-    def click(self, x: int, y: int, delay: float = 0.05) -> bool:
+    def click(self, x: int, y: int, random_range: int | tuple = 0) -> bool:
         """
         后台点击窗口内坐标（不移动鼠标）.
 
@@ -53,7 +54,9 @@ class AutoClicker:
         Args:
             x: 点击位置的x坐标
             y: 点击位置的y坐标
-            delay: 点击后的延迟时间（秒），默认为0.05秒
+            random_range: 随机点击范围（整数或元组），默认为0。
+                如果为整数，点击坐标将在该范围内随机偏移。
+                如果为元组 (dx, dy)，点击坐标将在该范围内随机偏移。
 
         Returns:
             bool: 点击成功返回True，失败返回False
@@ -62,18 +65,27 @@ class AutoClicker:
             print("窗口未连接，无法点击")
             return False
         try:
-            self.window.click(coords=(x, y))
-            # print(f"成功点击 ({x}, {y})")
-            sleep(delay)
+            # 处理随机范围
+            if isinstance(random_range, tuple):
+                range_x, range_y = random_range
+            else:
+                range_x = range_y = random_range
+
+            # 分别计算偏移
+            offset_x = random.randint(-range_x, range_x)
+            offset_y = random.randint(-range_y, range_y)
+            
+            self.window.click(coords=(x + offset_x, y + offset_y))
             return True
         except Exception as e:
             raise Exception(f"点击失败: {e}")
-            return False
 
     def is_window_ready(self) -> bool:
-        """检查窗口是否仍然存在.
+        """
+        检查窗口是否仍然存在.
 
         Returns:
             bool: 窗口存在且可用返回True，否则返回False
         """
         return self.window is not None and self.window.exists()
+    

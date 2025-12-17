@@ -7,8 +7,7 @@
 
 >建议直接下载打包版，即开即用。https://github.com/conFess233/ymjh_script/releases
 
-1. 安装python环境
->https://www.python.org/ftp/python/3.13.7/python-3.13.7-amd64.exe
+1. [安装python环境](https://www.python.org/ftp/python/3.13.7/python-3.13.7-amd64.exe)
 
 2. 克隆仓库或下载源码
 ```
@@ -67,19 +66,25 @@ pyinstaller -F -w --clean main.py --add-data "src/ui/core/styles.qss.template:."
 - 运行脚本时请确保一梦江湖客户端已经登录并且在主界面。
 - 如果脚本无法正常运行，请检查系统缩放，一般为125%。
 - 脚本运行时可操作其它窗口，但不要将游戏窗口最小化，这会导致系统停止渲染游戏画面，导致脚本无法正常运行。
+- 点击间隔尽量设置在1.5秒以上，以免因游戏ui的淡入淡出动画导致点击无效。
 
 ## 预定添加的功能
-- <input type="checkbox" checked="true" disabled="true">暂停</input>
-- <input type="checkbox" checked="true" disabled="true">多开</input>
-- <input type="checkbox" disabled="true">更多任务流程</input>
-- <input type="checkbox" disabled="true">资源占用优化</input>
-- <input type="checkbox" disabled="true">更准确的匹配方法</input>
+- [x] 暂停
+- [x] 多开
+- [ ] 更多任务流程
+- [x] 资源占用优化
+- [ ] 更准确的匹配方法
 
 ## 已实现的任务流程
 - 日常副本
 - 论剑
 
+## 已知问题
+- ~~在进行日常副本挂机时，可能会因为场景过暗导致无法匹配到退出按钮而卡住的情况。（已修复）~~
+
 ## 更新日志
 - *2025-12-04* 实现了暂停功能，增加了任务计时，每轮任务完成后显示耗时，添加一些使用说明。
 - *2025-12-05* 增加了多开功能，日志自动保存功能。修改了部分日志的输出方式，现在在ui界面显示的日志不会太过冗长，只显示必要的信息。
 - *2025-12-11* 放弃使用多进程实现多开，改为多线程，限制日志行数，以防日志过多导致内存泄漏。
+- *2025-12-14* 更换了一些模板，修复了一些匹配错误的情况。增加简单的防检测机制（点击位置随机偏移+随机截图/点击间隔）。创建任务时直接将其内模板全部初始化到内存，避免了每次匹配时都需要读取模板文件的情况。修改截图方法为BitBlt，提高截图效率。
+- *2025-12-17* 优化任务流程，新增状态机机制，更容易扩展任务流程，修改了部分模板。

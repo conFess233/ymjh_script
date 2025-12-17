@@ -1,29 +1,21 @@
 
-from ctypes import windll
 import win32gui
 import win32ui
+import win32con
 import numpy as np
 from cv2 import cvtColor, COLOR_BGRA2BGR, imwrite
 import os
+from typing import Optional, Tuple
 
 
 class WindowCapture:
     """
-    用于捕获指定窗口画面的类.
-
-    功能：
-      自动查找目标窗口
-      截取一次画面
-      临时缓存画面
-      获取、保存或清空缓存
+    捕获指定窗口画面.
     """
 
     def __init__(self):
         """
         初始化窗口捕获器.
-
-        Args:
-            window_title: 目标窗口标题（支持模糊匹配）
         """
         self.hwnd = None
         self.cache = None
@@ -37,12 +29,12 @@ class WindowCapture:
         """
         self.hwnd = hwnd
 
-    def get_window_size(self):
+    def get_window_size(self) -> Optional[Tuple[int, int]]:
         """
         获取窗口尺寸.
 
         Returns:
-            tuple: 窗口的宽度和高度 (width, height)
+            窗口尺寸(Optional[Tuple[int, int]]): 窗口的宽度和高度 (width, height)，如果窗口无效则返回 None
         """
         if not self.hwnd:
             return None
@@ -53,31 +45,26 @@ class WindowCapture:
             return None
         return (w, h)
 
-    def capture(self):
+    def capture(self) -> Optional[np.ndarray]:
         """
         截取画面并缓存.
 
         截取目标窗口的画面并将其缓存到内存中。
 
         Returns:
-            numpy.ndarray: 截图图像，截取失败则返回None
+            截图图像(Optional[np.ndarray]): 截图图像，截取失败则返回None
         """
         if not self.hwnd:
             return None
-            
-        # 统一处理DPI,防止高DPI显示器导致截图尺寸异常
-        try:
-            windll.user32.SetProcessDPIAware()
-        except AttributeError:
-            print("当前Windows版本为:", os.environ.get('OS'))
-            print("SetProcessDPIAware 函数不存在，请假查Windows版本是否支持")
 
         # 获取窗口区域(客户端)
         left, top, right, bottom = win32gui.GetClientRect(self.hwnd)
         w = right - left # 减去窗口边框宽度
         h = bottom - top # 减去窗口标题栏高度
 
-        hwndDC = win32gui.GetWindowDC(self.hwnd)
+        # 获取设备上下文
+        # 如果使用 GetWindowDC，(0,0) 坐标会包含标题栏
+        hwndDC = win32gui.GetDC(self.hwnd) 
         mfcDC = win32ui.CreateDCFromHandle(hwndDC)
         saveDC = mfcDC.CreateCompatibleDC()
 
@@ -86,16 +73,32 @@ class WindowCapture:
         saveDC.SelectObject(saveBitMap)
 
         # 截图
-        result = windll.user32.PrintWindow(self.hwnd, saveDC.GetSafeHdc(), 1)
+        try:
+            # (0, 0) => 目标 DC 的左上角
+            # (w, h) => 复制的宽高
+            # mfcDC  => 源 DC
+            # (0, 0) => 源 DC 的左上角
+            saveDC.BitBlt((0, 0), (w, h), mfcDC, (0, 0), win32con.SRCCOPY)
+            result = True
+        except win32ui.error:
+            result = None
 
         # 从 bitmap 提取数据
-        bmpinfo = saveBitMap.GetInfo()
+        # bmpinfo = saveBitMap.GetInfo() # 可选
         bmpstr = saveBitMap.GetBitmapBits(True)
 
         # 将字节流转换为 numpy 数组（BGRX → BGR）
         img = np.frombuffer(bmpstr, dtype=np.uint8)
-        img = img.reshape((h, w, 4))       # 4通道：B, G, R, X
-        frame = cvtColor(img, COLOR_BGRA2BGR)
+        
+        # 防止窗口大小变化导致数据不匹配
+        if len(img) == w * h * 4:
+            img = img.reshape((h, w, 4))       # 4通道：B, G, R, X
+            frame = cvtColor(img, COLOR_BGRA2BGR)
+            self.cache = frame
+        else:
+            print(f"截图数据尺寸不匹配: 预期 {w*h*4}, 实际 {len(img)}")
+            result = None
+            frame = None
 
         # 清理资源
         win32gui.DeleteObject(saveBitMap.GetHandle())
@@ -104,26 +107,25 @@ class WindowCapture:
         win32gui.ReleaseDC(self.hwnd, hwndDC)
 
         if result is None:
-            print("捕获失败（窗口可能被最小化或遮挡）")
+            print("捕获失败（或窗口无效）")
             return None
 
-        self.cache = frame
         # print(f"捕获成功，尺寸：{frame.shape[1]}x{frame.shape[0]}")
         return frame
 
-    def get_cache(self):
+    def get_cache(self) -> Optional[np.ndarray]:
         """
         获取缓存图像.
 
         Returns:
-            numpy.ndarray or None: 缓存的图像，未缓存则返回None
+            缓存图像(Optional[np.ndarray]): 缓存的图像，未缓存则返回None
         """
         if self.cache is None:
             print("当前没有缓存画面，请先调用 capture()")
             return None
         return self.cache
 
-    def save_cache(self, filename: str = "capture.png"):
+    def save_cache(self, filename: str = "capture.png") -> bool:
         """
         保存缓存图像.
 
@@ -133,7 +135,7 @@ class WindowCapture:
             filename: 保存的文件名，默认为"capture.png"
 
         Returns:
-            bool: 保存成功返回True，否则返回False
+            保存结果(bool): 保存成功返回True，否则返回False
         """
         if self.cache is None:
             print("当前没有缓存画面")

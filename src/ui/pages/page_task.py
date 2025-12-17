@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QWidget, QGridLayout, QLabel, QComboBox, QProgressBar, QTextEdit, QVBoxLayout, QPushButton
 from PySide6.QtGui import QColor, QBrush, QTextCursor
+from PySide6.QtCore import Qt
 from ..models.task_model import TaskModel
 from ..widgets.task_list import TaskList
 from .script_cfg_window import ScriptCfgWindow
@@ -36,6 +37,7 @@ class PageScript(QWidget):
         self.log_area = QTextEdit()
         self.log_area.setPlaceholderText("日志输出区域")
         self.log_area.setReadOnly(True)
+        self.log_area.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
 
         # 创建状态标签并设置样式
         self.status_label = QLabel("")

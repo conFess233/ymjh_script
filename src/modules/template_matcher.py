@@ -26,6 +26,7 @@ class TemplateMatcher:
         self.last_match = None # 上次匹配结果
         self.method = cv2.TM_CCOEFF_NORMED  # 默认匹配方法
         self.template_mask = None # 模板掩模
+        self.cache: Dict[str, Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]] = {} # 缓存字典，键为模板路径，值为 (匹配结果, 坐标, 掩模)
 
     def set_base_window_size(self, base_window_size: tuple):
         """
@@ -36,6 +37,49 @@ class TemplateMatcher:
         """
         self.base_window_size = base_window_size
         self.base_w, self.base_h = base_window_size
+
+    def _load_image_data(self, template_path: str) -> Tuple[np.ndarray, np.ndarray, Optional[np.ndarray]]:
+        """
+        读取并处理单张图片数据。
+
+        Args:
+            template_path (str): 模板图像文件路径。
+
+        Returns:
+            (tuple[np.ndarray, np.ndarray, np.ndarray]): 包含模板图像、灰度图和掩模的元组。
+        """
+        # 加载模板图像
+        template = cv2.imread(template_path, cv2.IMREAD_UNCHANGED)
+        if template is None:
+            raise FileNotFoundError(f"无法加载模板: {template_path}")
+
+        mask = None
+        # 去除透明通道 / 生成掩模
+        if template.shape[2] == 4:
+            alpha = template[:, :, 3]
+            mask = cv2.threshold(alpha, 10, 255, cv2.THRESH_BINARY)[1]
+            template = template[:, :, :3]
+        else:
+            # 自动生成掩模（排除亮度过低或过高的背景）
+            gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+            mask = cv2.inRange(gray, np.array([10], dtype=np.uint8), np.array([245], dtype=np.uint8))
+
+        template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+        
+        return template, template_gray, mask
+
+    def load_templates_to_cache(self, template_path_list: list):
+        """
+        批量加载模板到内存缓存中
+        """
+        for path in template_path_list:
+            if path not in self.cache:
+                try:
+                    data = self._load_image_data(path)
+                    self.cache[path] = data
+                    # print(f"模板已缓存: {path}")
+                except Exception as e:
+                    print(f"缓存模板失败 {path}: {e}")
         
     def set_template(self, template_path: str):
         """
@@ -43,37 +87,25 @@ class TemplateMatcher:
 
         Args:
             template_path (str): 模板图像文件路径。
-
-        Raises:
-            FileNotFoundError: 当模板图像无法加载时抛出异常。
         """
-        # 加载模板图像
-        template = cv2.imread(template_path, cv2.IMREAD_UNCHANGED)
-        if template is None:
-            raise FileNotFoundError(f"无法加载模板: {template_path}")
+        if template_path in self.cache:
+            self.template, self.template_gray, self.template_mask = self.cache[template_path]
+            self.template_path = template_path
+            return
 
-        # 去除透明通道
-        if template.shape[2] == 4:
-            alpha = template[:, :, 3]
-            self.template_mask = cv2.threshold(alpha, 10, 255, cv2.THRESH_BINARY)[1]
-            template = template[:, :, :3]
-        else:
-            # 自动生成掩模（排除亮度过低或过高的背景）
-            gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-            mask = cv2.inRange(gray, np.array([10], dtype=np.uint8), np.array([245], dtype=np.uint8))
-            self.template_mask = mask
-
-        self.template = template.copy()
-        self.template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+        # 读取并存入缓存
+        data = self._load_image_data(template_path)
+        self.cache[template_path] = data
+            
+        self.template, self.template_gray, self.template_mask = data
         self.template_path = template_path
-        # print(f"模板已加载: {template_path}, 尺寸={self.template_gray.shape[::-1]}")
 
     def get_template_gray(self) -> Optional[np.ndarray]:
         """
         返回模板灰度图。
 
         Returns:
-            Optional[np.ndarray]: 模板灰度图像。如果尚未加载模板，则返回 None。
+            np.ndarray: 模板灰度图像。如果尚未加载模板，则返回 None。
         """
         return self.template_gray
 
@@ -82,7 +114,7 @@ class TemplateMatcher:
         返回当前模板信息（路径与尺寸）。
 
         Returns:
-            Optional[Dict[str, Any]]: 包含模板路径、宽度和高度的字典。
+            模板信息 (Dict[str, Any]): 包含模板路径、宽度和高度的字典。
             如果未设置模板则返回 None。
         """
         if self.template_gray is None:
@@ -90,7 +122,7 @@ class TemplateMatcher:
         h, w = self.template_gray.shape[:2]
         return {"path": self.template_path, "width": w, "height": h}
 
-    def match_scaled(self, screenshot: np.ndarray, threshold: float = 0.6) -> Tuple[Optional[Tuple[int, int]], float]:
+    def match_scaled(self, screenshot: np.ndarray, threshold: float = 0.6) -> Tuple[Optional[Tuple[int, int]], float, Optional[Tuple[int, int]]]:
         """
         执行缩放模板匹配。
 
@@ -101,14 +133,14 @@ class TemplateMatcher:
             threshold (float, optional): 匹配阈值，默认 0.6。
 
         Returns:
-            Tuple[Optional[Tuple[int, int]], float]: 
-                匹配结果 (center, match_val)，其中：
-                    - center (Tuple[int, int]): 匹配到的目标中心坐标；
-                    - match_val (float): 匹配相似度（0~1）。
-                如果未匹配到，center 为 None。
+            匹配结果 (center, match_val, (tw, th)):
+                - center (Tuple[int, int]): 匹配到的目标中心坐标；
+                - match_val (float): 匹配相似度（0~1）。
+                - (tw, th) (Tuple[int, int]): 匹配到的目标尺寸（宽度, 高度）。
+            如果未匹配到，center, (tw, th) 均为 None。
         """
         if self.template_gray is None:
-            raise RuntimeError("未设置模板，请先调用 set_template() 或 set_template_from_image()")
+            raise RuntimeError("未设置模板，请先调用 set_template()")
 
         # 计算缩放比例
         h1, w1 = screenshot.shape[:2]
@@ -142,17 +174,29 @@ class TemplateMatcher:
         if match_val >= threshold and match_val != float('inf'):
             center = (match_loc[0] + tw // 2, match_loc[1] + th // 2)
             self.last_match = (center, match_val, (tw, th))
-            return center, match_val
+            return center, match_val, (tw, th)
         else:
             self.last_match = None
-            return None, match_val
+            return None, match_val, None
         
-    def pyramid_template_match(self, screenshot: np.ndarray, threshold: float = 0.6) -> Tuple[Optional[Tuple[int, int]], float]:
+    def pyramid_template_match(self, screenshot: np.ndarray, threshold: float = 0.6) -> Tuple[Optional[Tuple[int, int]], float, Optional[Tuple[int, int]]]:
         """
         使用图像金字塔多尺度模板匹配，返回最佳匹配结果的中心点坐标和匹配分数。
+
+        Args:
+            screenshot (np.ndarray): 当前截图图像。
+            threshold (float, optional): 匹配阈值，默认 0.6。
+
+        Returns:
+            (Tuple[Tuple[int, int]], float, [Tuple[int, int]]]): 
+                匹配结果 (center, match_val, (tw, th))，其中：
+                    - center (Tuple[int, int]): 匹配到的目标中心坐标；
+                    - match_val (float): 匹配相似度（0~1）。
+                    - (tw, th) (Tuple[int, int]): 匹配到的目标尺寸（宽度, 高度）。
+                如果未匹配到，center, (tw, th) 均为 None。
         """
         if self.template_gray is None:
-            raise RuntimeError("未设置模板，请先调用 set_template() 或 set_template_from_image()")
+            raise RuntimeError("未设置模板，请先调用 set_template()")
 
         h, w = self.template_gray.shape[:2]
         best_val = -1
@@ -195,10 +239,10 @@ class TemplateMatcher:
         if best_val >= threshold and best_loc is not None:
             center = (best_loc[0] + best_tw // 2, best_loc[1] + best_th // 2)
             self.last_match = (center, best_val, (best_tw, best_th))
-            return center, best_val
+            return center, best_val, (best_tw, best_th)
         else:
             self.last_match = None
-            return None, best_val
+            return None, best_val, None
 
     def visualize_match(self, screenshot: np.ndarray):
         """
