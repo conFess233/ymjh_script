@@ -1,6 +1,8 @@
-from pywinauto import Application
-from pywinauto.findwindows import ElementNotFoundError
 import random
+import time
+import win32api
+import win32con
+import win32gui
 
 
 class AutoClicker:
@@ -18,23 +20,11 @@ class AutoClicker:
             window_title: 目标窗口标题
         """
         self.hwnd = None
-        self.app = None
-        self.window = None
 
     def connect_window(self):
-        """
-        连接目标窗口.
-
-        尝试查找并连接到指定标题的窗口。
-        """
-        try:
-            self.app = Application().connect(handle=self.hwnd)
-            self.window = self.app.window(handle=self.hwnd)
-            # print(f"成功连接窗口: (hwnd={self.hwnd})")
-        except ElementNotFoundError:
-            raise ElementNotFoundError(f"未找到窗口: (hwnd={self.hwnd})")
-        except Exception as e:
-            raise ConnectionError(f"连接窗口失败: {e}")
+        # 简单检查句柄有效性
+        if self.hwnd and not win32gui.IsWindow(self.hwnd):
+            raise Exception(f"无效的句柄: {self.hwnd}")
     
     def set_hwnd(self, hwnd: int):
         """
@@ -61,24 +51,31 @@ class AutoClicker:
         Returns:
             bool: 点击成功返回True，失败返回False
         """
-        if not self.window:
+        if not self.hwnd:
             print("窗口未连接，无法点击")
             return False
-        try:
-            # 处理随机范围
-            if isinstance(random_range, tuple):
-                range_x, range_y = random_range
-            else:
-                range_x = range_y = random_range
+        
+        if isinstance(random_range, tuple):
+            rx, ry = random_range
+        else:
+            rx = ry = random_range
+        
+        cx = x + random.randint(-rx, rx)
+        cy = y + random.randint(-ry, ry)
 
-            # 分别计算偏移
-            offset_x = random.randint(-range_x, range_x)
-            offset_y = random.randint(-range_y, range_y)
-            
-            self.window.click(coords=(x + offset_x, y + offset_y))
+        # 组合坐标参数 (高位y, 低位x)
+        lparam = win32api.MAKELONG(cx, cy)
+
+        try:
+            # 使用 PostMessage 发送点击消息，不需要激活窗口
+            win32gui.PostMessage(self.hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lparam)
+            # 加上微小的延迟模拟真实点击
+            time.sleep(random.uniform(0.05, 0.15)) 
+            win32gui.PostMessage(self.hwnd, win32con.WM_LBUTTONUP, 0, lparam)
             return True
         except Exception as e:
-            raise Exception(f"点击失败: {e}")
+            print(f"点击失败: {e}")
+            return False
 
     def is_window_ready(self) -> bool:
         """
@@ -87,5 +84,5 @@ class AutoClicker:
         Returns:
             bool: 窗口存在且可用返回True，否则返回False
         """
-        return self.window is not None and self.window.exists()
+        return bool(self.hwnd is not None and win32gui.IsWindow(self.hwnd))
     

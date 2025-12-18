@@ -469,7 +469,6 @@ class TemplateMatchingTask(Task):
         """
         pass
 
-    @abstractmethod
     def get_task_name(self) -> str | None:
         """
         获取任务名称。

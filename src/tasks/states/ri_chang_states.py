@@ -120,6 +120,12 @@ class CombatState(State):
                 self.task.click_template("template_img/ri_chang_fu_ben_tui_chu.png", center, size)
                 self.sleep(2.0)
                 self.task.auto_clicker.click(center[0], center[1])
+                
+        if "template_img/ri_chang_fu_ben_tui_chu.png" in self.task.clicked_templates:
+            match_result = self.task.match_and_click("template_img/tui_ben_tui_dui.png")
+            center, val, size = match_result
+            if center:
+                self.task.click_template("template_img/tui_ben_tui_dui.png", center, size)
                 logger.info(f"[{self.task.get_task_name()}]已执行退出副本操作，结束任务。", mode=self.task.log_mode)
                 self.task.stop()
         self.sleep(3.0)
