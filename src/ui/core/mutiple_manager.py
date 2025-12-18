@@ -109,8 +109,8 @@ class MultipleProcessManager(QObject):
         直接从对象获取数据
         """
         item = self.get_item(hwnd)
-        if item and item.task_model:
-            return item.task_model.get_run_task_list_names()
+        if item and item.data_model:
+            return item.data_model.get_task_names()
         return []
 
     def set_process_task_list(self, hwnd: int, new_task_names: list[str]):

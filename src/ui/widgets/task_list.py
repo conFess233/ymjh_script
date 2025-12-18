@@ -6,14 +6,13 @@ from PySide6.QtCore import Signal
 
 class TaskList(QListWidget):
     """
-    任务列表组件，支持右键菜单、拖放排序，并与 TaskModel 同步。
+    任务列表组件 - 已适配 TaskDataModel
     """
-    def __init__(self, task_model, placeholder="请从右侧选择任务添加到此处"):
+    def __init__(self, data_model, placeholder="请从右侧选择任务添加到此处"):
         super().__init__()
-        self.task_model = task_model
+        # TaskDataModel 实例
+        self.data_model = data_model 
         self.placeholder = placeholder
-
-        # 启用自定义右键菜单
 
         self.setContextMenuPolicy(Qt.CustomContextMenu) # type: ignore
         self.customContextMenuRequested.connect(self.open_menu)
@@ -22,60 +21,41 @@ class TaskList(QListWidget):
         self.setSortingEnabled(False)
         self.setPlaceholderText(self.placeholder)
         
-        # 连接 TaskModel 的信号来刷新 UI
-        self.task_model.run_list_changed.connect(self.refresh_list_from_model)
+        # 连接 TaskDataModel 的信号
+        self.data_model.run_list_changed.connect(self.refresh_list_from_model)
         
-        # 初始刷新
         self.refresh_list_from_model()
 
     def setPlaceholderText(self, text):
-            """
-            设置占位符文本，当列表为空时显示.
-
-            Args:
-                text (str): 占位符文本.
-            """
-
-            self.placeholder = text
+        self.placeholder = text
 
     def paintEvent(self, event):
         super().paintEvent(event)
-        # 当列表为空时绘制提示文字
         if self.count() == 0:
             painter = QPainter(self.viewport())
-            painter.setPen(QColor(150, 150, 150))  # 灰色文字
-            # 垂直居中显示
+            painter.setPen(QColor(150, 150, 150))
             x = 10
             y = self.height() // 2
             painter.drawText(x, y, self.placeholder)
 
     def refresh_list_from_model(self):
         """
-        根据 TaskModel 中的 _run_list 刷新 UI 列表。
-        
-        注意：Model 中存储的是任务实例 (Task Instance)，UI 中存储的是任务名称 (Task Name)。
+        刷新列表
         """
-        # 清空现有列表
         self.clear()
-        
-        # 从 Model 中获取任务实例，并添加到 UI 列表中
-        for task_instance in self.task_model.get_run_list():
+        for task_instance in self.data_model.get_tasks():
             task_name = task_instance.get_task_name()
-            # 确保添加到 UI 列表的是任务名称
             item = QListWidgetItem(task_name)
             self.addItem(item)
 
     def open_menu(self, pos: QPoint):
         """
-        打开任务列表的右键菜单，包含上移、下移、移动到顶部、移动到底部、删除操作。
+        打开上下文菜单
         """
         item = self.itemAt(pos)
-        if not item:
-            return
-
+        if not item: return
         row = self.row(item)
         count = self.count()
-
         menu = QMenu(self)
         act_up = menu.addAction("上移")
         act_down = menu.addAction("下移")
@@ -85,62 +65,46 @@ class TaskList(QListWidget):
         act_delete = menu.addAction("删除")
 
         action = menu.exec(self.mapToGlobal(pos))
-        if not action:
-            return
+        if not action: return
 
-        if action == act_up:
-            self.move_task_action(row, row - 1)
+        if action == act_up: self.move_task_action(row, row - 1)
+        elif action == act_down: self.move_task_action(row, row + 1)
+        elif action == act_top: self.move_task_action(row, 0)
+        elif action == act_bottom: self.move_task_action(row, count - 1)
+        elif action == act_delete: self.delete_task_action(row)
 
-        elif action == act_down:
-            self.move_task_action(row, row + 1)
-
-        elif action == act_top:
-            self.move_task_action(row, 0)
-
-        elif action == act_bottom:
-            self.move_task_action(row, count - 1)
-
-        elif action == act_delete:
-            self.delete_task_action(row, item.text())
-
-
-    def delete_task_action(self, row: int, task_name: str):
+    def delete_task_action(self, row: int):
         """
-        删除任务并通知 Model。
+        删除任务
         """
-        self.task_model.remove_task_by_index(row) 
-        self.refresh_list_from_model
+        self.data_model.remove_task(row) 
 
     def move_task_action(self, old_row: int, new_row: int):
         """
-        移动任务，仅通知 Model。UI 刷新由 Model 信号触发。
+        移动任务
         """
         if old_row == new_row or new_row < 0 or new_row >= self.count():
             return
-        
-        # 仅通知 Model
-        self.task_model.move_task(old_row, new_row)
-        
-        item_text = self.item(old_row).text() if self.item(old_row) else "Unknown Task"
+        self.data_model.move_task(old_row, new_row)
 
-    # --- 拖放功能 目前未实现 ---
-
-    def move_item_up(self, row):
+    def dropEvent(self, event):
         """
-        上移任务，仅通知 Model。UI 刷新由 Model 信号触发。
+        处理任务列表的拖放事件，实现任务的内部移动。
         """
-        if row <= 0:
+        source_row = self.currentRow()
+        if source_row < 0: return
+        pos = event.position().toPoint()
+        item = self.itemAt(pos)
+        if item:
+            target_row = self.row(item)
+        else:
+            target_row = self.count() - 1
+        if target_row == source_row:
+            event.ignore()
             return
-        self.move_task_action(row, row - 1)
-
-    def move_item_down(self, row):
-        """
-        下移任务，仅通知 Model。UI 刷新由 Model 信号触发。
-        """
-        if row >= self.count() - 1:
-            return
-        self.move_task_action(row, row + 1)
-
+        self.data_model.move_task(source_row, target_row)
+        event.accept()
+        
 class MultipleTaskList(QListWidget):
     """
     多开用任务列表，用于显示和管理多个任务。
@@ -278,3 +242,15 @@ class MultipleTaskList(QListWidget):
             list[str]: 所有任务项的文本列表。
         """
         return [self.item(i).text() for i in range(self.count())]
+    
+    def dropEvent(self, event):
+        source_row = self.currentRow()
+        
+        # 执行默认的 UI 移动
+        super().dropEvent(event)
+        
+        target_row = self.currentRow()
+        
+        # 通知外部数据已变更
+        if source_row != target_row:
+            self.task_moved_signal.emit(source_row, target_row)

@@ -180,7 +180,7 @@ class PageMultiple(QWidget):
         self.clear_task_btn.clicked.connect(lambda: self.task_list.clear())
         self.change_task_cfg_btn.clicked.connect(self.open_script_cfg)
         self.change_task_btn.clicked.connect(lambda: self.on_task_list_modified())
-        self.manager.task_status_changed.connect(self.handle_task_model_status_update)
+        self.manager.task_status_changed.connect(self.handle__status_cache_update)
         logger.log_multiprocess_signal.connect(self.display_log_message)
 
 # --- 辅助方法 ---
@@ -245,7 +245,7 @@ class PageMultiple(QWidget):
         return handle
 
 # --- 槽函数 ---
-    def handle_task_model_status_update(self, handle: int, status_dict: dict):
+    def handle__status_cache_update(self, handle: int, status_dict: dict):
         """
         接收并处理 TaskModel 的详细状态更新。
         """
@@ -276,7 +276,7 @@ class PageMultiple(QWidget):
         运行所有进程
         """
         for item in self.manager.get_all_items().values():
-            if item.task_model_status["overall_status"] == "已停止" or item.task_model_status["overall_status"] == "未运行":
+            if item._status_cache["overall_status"] == "已停止" or item._status_cache["overall_status"] == "未运行":
                 item.start_process()
 
     def stop_all_processes(self):
@@ -284,7 +284,7 @@ class PageMultiple(QWidget):
         停止所有进程
         """
         for item in self.manager.get_all_items().values():
-            if item.task_model_status["overall_status"] == "运行中":
+            if item._status_cache["overall_status"] == "运行中" or item._status_cache["overall_status"] == "已暂停":
                 item.stop_process()
     
     def pause_all_processes(self):
@@ -292,7 +292,7 @@ class PageMultiple(QWidget):
         暂停所有进程
         """
         for item in self.manager.get_all_items().values():
-            if item.task_model_status["overall_status"] == "运行中":
+            if item._status_cache["overall_status"] == "运行中":
                 item.pause_process()
 
     def resume_all_processes(self):
@@ -300,7 +300,7 @@ class PageMultiple(QWidget):
         恢复所有进程
         """
         for item in self.manager.get_all_items().values():
-            if item.task_model_status["overall_status"] == "已暂停":
+            if item._status_cache["overall_status"] == "已暂停":
                 item.resume_process()
 
     def pause_process(self):
@@ -404,7 +404,7 @@ class PageMultiple(QWidget):
                     logger.error(f"未找到窗口句柄为 {handle} 的进程项", mode=self.log_mode)
                     return
                 
-                if item.task_model_status["overall_status"] == "运行中":
+                if item._status_cache["overall_status"] == "运行中":
                     self.control_button.setText("停止选中")
                     self.pause_btn.setEnabled(True)
                     self.add_task_btn.setEnabled(False)
@@ -412,14 +412,14 @@ class PageMultiple(QWidget):
                     self.task_list.setEnabled(False)
                     self.resume_btn.setEnabled(False)
                     self.change_task_btn.setEnabled(False)
-                elif item.task_model_status["overall_status"] == "已暂停":
+                elif item._status_cache["overall_status"] == "已暂停":
                     self.pause_btn.setEnabled(False)
                     self.add_task_btn.setEnabled(False)
                     self.clear_task_btn.setEnabled(False)
                     self.task_list.setEnabled(False)
                     self.resume_btn.setEnabled(True)
                     self.change_task_btn.setEnabled(False)
-                elif item.task_model_status["overall_status"] == "未运行" or item.task_model_status["overall_status"] == "已停止":
+                else:
                     self.control_button.setText("启动选中")
                     self.pause_btn.setEnabled(False)
                     self.add_task_btn.setEnabled(True)
@@ -477,9 +477,9 @@ class PageMultiple(QWidget):
             self.table_model.add_data({
                 "name": item.name,
                 "handle": item.handle,
-                "status": item.task_model_status["overall_status"],
-                "current_run": item.task_model_status["current_task"],
-                "progress": item.task_model_status["progress"],
+                "status": item._status_cache["overall_status"],
+                "current_run": item._status_cache["current_task"],
+                "progress": item._status_cache["progress"],
             })
 
     def _refresh_process_status(self, handle: int, status: dict):
@@ -506,7 +506,7 @@ class PageMultiple(QWidget):
             logger.error(f"错误：找不到句柄 {handle} 的进程", mode=self.log_mode) # 添加错误提示
             return
 
-        if item.task_model_status["overall_status"] == "已停止" or item.task_model_status["overall_status"] == "未运行":
+        if item._status_cache["overall_status"] == "已停止" or item._status_cache["overall_status"] == "未运行":
             item.start_process()
         else:
             item.stop_process()

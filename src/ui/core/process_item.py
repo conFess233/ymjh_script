@@ -1,11 +1,12 @@
-from PySide6.QtCore import QObject, Signal, QThread
-import time
-from ..models.task_model import TaskModel
+from PySide6.QtCore import QObject, Signal
+from ..core.task_runner import TaskRunner
+from ..core.window_manager import WindowManager
+from ..models.task_data_model import TaskDataModel
 from ..core.logger import logger
 
 class ProcessItem(QObject):
     """
-    进程项模型类，用于管理单个窗口任务模型.
+    进程项控制器
     """
     # 定义控制信号，用于跨线程调用 TaskModel 的方法
     sig_start = Signal()
@@ -19,157 +20,136 @@ class ProcessItem(QObject):
     # 定义任务状态信号，用于通知 UI 更新任务状态
     task_model_status_signal = Signal(int, object) 
 
-    def __init__(self, handle: int, name: str = "", multi_run=False, tasks: list[str] = []):
+    def __init__(self, handle: int, name: str = "", tasks: list[str] = [], multi_run: bool = False):
         super().__init__()
         self.handle = handle
         self.name = name
         self.multi_run = multi_run
         
-        # 创建子线程
-        self.worker_thread = QThread()
-        
-        # 创建 TaskModel 实例
-        self.task_model = TaskModel(hwnd=handle, name=name, multi_run_mode=True, log_mode=3)
+        self.window_manager = WindowManager()
+        self.data_model = TaskDataModel()
+        self.runner = TaskRunner()
 
-        if not self.task_model.connect_window():
-            logger.error(f"窗口 {handle} 配置失败，无法创建任务线程")
-            return
-        self.task_model.add_task_multiple(tasks)
-        
-        # 将 TaskModel 移动到子线程
-        self.task_model.moveToThread(self.worker_thread)
-        
-        # 连接控制信号
-        self.sig_start.connect(self.task_model.start_queue)
-        self.sig_stop.connect(self.task_model.stop_queue)
-        self.sig_pause.connect(self.task_model.pause_queue)
-        self.sig_resume.connect(self.task_model.resume_queue)
-        
-        # 连接状态反馈信号
-        self.task_model.status_changed.connect(self._on_status_changed)
-        self.task_model.running_task_changed.connect(self._on_running_task_changed)
-        self.task_model.queue_paused_changed.connect(self._on_paused_changed)
-        self.task_model.progress_changed.connect(self._on_progress_changed)
-        
-        # 线程清理逻辑
-        self.worker_thread.finished.connect(self.worker_thread.deleteLater)
-        self.worker_thread.finished.connect(self.task_model.deleteLater)
-        
-        # 启动线程的事件循环（注意：这不会启动任务，只是让 QObject 在线程里活起来）
-        self.worker_thread.start()
+        # 初始配置
+        self.data_model.add_tasks_by_names(tasks)
 
-        # 内部状态缓存
-        self.task_model_status = {
+        self._status_cache = {
             "overall_status": "未运行",
             "current_task": "无",
             "progress": 0,
             "is_paused": False
         }
-        self.status = "未运行"
 
-    # --- 信号处理槽函数 ---
-    def _on_status_changed(self, status: str):
+        self._bind_signals()
+
+        # 自动连接窗口
+        self.window_manager.connect_by_hwnd(handle)
+
+    def _bind_signals(self):
         """
-        处理任务状态变化信号.
+        连接各组件的信号到内部处理函数
+        """
+        # Runner -> ProcessItem -> UI
+        self.runner.started.connect(lambda: self._update_status(overall="运行中", paused=False))
+        self.runner.stopped.connect(lambda: self._update_status(overall="已停止", paused=False))
+        self.runner.finished.connect(lambda: self._update_status(overall="已完成", paused=False))
+        self.runner.paused.connect(lambda: self._update_status(overall="已暂停", paused=True))
+        self.runner.resumed.connect(lambda: self._update_status(overall="运行中", paused=False))
         
-        Args:
-            status (str): 任务状态字符串.
-        """
-        self.task_model_status["overall_status"] = status
-        if self.status != status:
-            self.status = status
-            self.status_signal.emit(status)
-        self._emit_status_update()
-
-    def _on_running_task_changed(self, task_name: str, index: int):
-        """
-        处理当前运行任务变化信号.
+        # 状态文字更新 (用于日志或简单显示)
+        self.runner.status_msg_changed.connect(self.status_signal.emit)
         
-        Args:
-            task_name (str): 当前运行的任务名称.
-            index (int): 当前运行任务在队列中的索引.
-        """
-        self.task_model_status["current_task"] = task_name
-        self.task_model_status["progress"] = self.task_model.get_progress() 
-        self._emit_status_update()
+        # 进度与当前任务
+        self.runner.progress_changed.connect(lambda p: self._update_status(progress=p))
+        self.runner.current_task_changed.connect(lambda name, idx: self._update_status(task=name))
 
-    def _on_paused_changed(self, is_paused: bool):
+    def _update_status(self, overall=None, task=None, progress=None, paused=None):
         """
-        处理队列暂停状态变化信号.
-        
-        Args:
-            is_paused (bool): 队列是否暂停.
+        统一更新状态缓存并发送信号给 UI
         """
-        self.task_model_status["is_paused"] = is_paused
-        self._emit_status_update()
+        if overall is not None:
+            self._status_cache["overall_status"] = overall
+            self.status_signal.emit(overall)
+            
+        if task is not None:
+            self._status_cache["current_task"] = task
+            
+        if progress is not None:
+            self._status_cache["progress"] = progress
+            
+        if paused is not None:
+            self._status_cache["is_paused"] = paused
+            # 如果暂停状态改变，文字状态也相应改变
+            if paused:
+                self._status_cache["overall_status"] = "已暂停"
+                self.status_signal.emit("已暂停")
+            elif overall is None and self.runner.is_running(): 
+                # 恢复且没有传入新的overall状态时，设回运行中
+                self._status_cache["overall_status"] = "运行中"
+                self.status_signal.emit("运行中")
 
-    def _on_progress_changed(self, progress: int):
-        """
-        处理任务进度变化信号.
-        
-        Args:
-            progress (int): 任务进度值.
-        """
-        self.task_model_status["progress"] = progress
-        self._emit_status_update()
+        # 发送完整的状态对象给 PageMultiple
+        self.task_model_status_signal.emit(self.handle, self._status_cache)
 
-    def _emit_status_update(self):
-        """
-        发送任务状态更新信号.
-        """
-        self.task_model_status_signal.emit(self.handle, self.task_model_status)
-
-    # --- 统一控制接口 ---
     def start_process(self):
         """
-        发送启动信号
+        启动任务
         """
-        if self.multi_run:
-            self.sig_start.emit()
+        if not self.window_manager.is_active():
+            logger.error(f"[{self.name}] 窗口无效，尝试重新连接...")
+            if not self.window_manager.connect_by_hwnd(self.handle):
+                self.status_signal.emit("窗口丢失")
+                return
+
+        # 获取当前最新的任务配置实例
+        tasks = self.data_model.get_tasks()
+        if not tasks:
+            logger.warning(f"[{self.name}] 任务列表为空")
+            return
+
+        # 启动 Runner (传入任务列表和句柄)
+        self.runner.start(tasks, self.handle)
 
     def stop_process(self):
         """
-        发送停止信号
+        停止.
         """
-        if self.multi_run:
-            self.sig_stop.emit()
+        self.runner.stop()
 
     def pause_process(self):
         """
-        发送暂停信号
+        暂停.
         """
-        if self.multi_run:
-            self.sig_pause.emit()
-
+        self.runner.pause()
+        
     def resume_process(self):
         """
-        发送恢复信号
+        恢复.
         """
-        if self.multi_run:
-            self.sig_resume.emit()
-
+        self.runner.resume()
     def kill_process(self):
         """
-        终止线程
+        终止.
         """
-        if self.multi_run:
-            if self.task_model:
-                self.task_model.stop_queue()
-
-            self.task_model.wait_for_stop(1.0)
-            # 退出 QThread 的事件循环
-            self.worker_thread.quit()
-            
-            # 等待线程结束
-            if not self.worker_thread.wait(1000): 
-                # 强制终止
-                print(f"线程 {self.handle} 响应超时，强制清理...")
-                self.worker_thread.terminate()
-                self.worker_thread.wait()
+        self.stop_process()
 
     def change_task_list(self, tasks: list[str] = []):
         """
-        改变当前进程的任务列表. 
+        动态修改任务列表 (通常在未运行状态下调用)
         """
-        if self.task_model:
-            self.task_model.add_task_multiple(tasks)
+        self.data_model.clear_tasks() # 假设 DataModel 有这个方法
+        
+        # 重新添加
+        if hasattr(self.data_model, 'add_tasks_by_names'):
+            self.data_model.add_tasks_by_names(tasks)
+        else:
+            for t in tasks:
+                self.data_model.add_task(t)
+        
+        logger.info(f"[{self.name}] 任务列表已更新: {tasks}", mode=1)
+
+    def log_msg(self, msg: str, level: str):
+        """
+        记录日志消息到总日志
+        """
+        logger.log(level, f"[{self.name}] {msg}")

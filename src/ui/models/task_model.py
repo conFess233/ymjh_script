@@ -14,7 +14,7 @@ from ..core.logger import logger
 
 class TaskModel(QObject): 
     """
-    任务模型类，继承 QObject 以使用信号机制，包含任务列表、任务设置等。
+    任务模型类，继承 QObject 以使用信号机制，包含任务列表、任务设置等。(已弃用)
     """
 
     # 定义信号，用于通知 UI 状态变化
@@ -97,7 +97,7 @@ class TaskModel(QObject):
             self.clicker.set_hwnd(self.hwnd)
             self.clicker.connect_window()
             window_name = win32gui.GetWindowText(self.hwnd)
-            if self.clicker.window: 
+            if self.clicker.hwnd: 
                 logger.info(f"窗口连接成功: {window_name}, 句柄: {self.hwnd}", mode=self.log_mode)
                 self.connect_window_changed.emit(window_name) # 发送连接成功信号
                 return True

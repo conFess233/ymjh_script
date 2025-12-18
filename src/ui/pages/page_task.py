@@ -1,7 +1,13 @@
 from PySide6.QtWidgets import QWidget, QGridLayout, QLabel, QComboBox, QProgressBar, QTextEdit, QVBoxLayout, QPushButton
 from PySide6.QtGui import QColor, QBrush, QTextCursor
 from PySide6.QtCore import Qt
-from ..models.task_model import TaskModel
+
+
+from ..models.task_data_model import TaskDataModel
+from ..core.task_runner import TaskRunner
+from ..core.window_manager import WindowManager
+from ..models.task_cfg_model import task_cfg_model
+
 from ..widgets.task_list import TaskList
 from .script_cfg_window import ScriptCfgWindow
 from ..core.logger import logger
@@ -14,8 +20,12 @@ class PageScript(QWidget):
     def __init__(self):
         # 调用父类的初始化方法
         super().__init__()
+
         # 创建任务数据模型
-        self.model = TaskModel()
+        self.data_model = TaskDataModel()
+        self.runner = TaskRunner()
+        self.window_manager = WindowManager()
+
         # 创建主网格布局，并设置间距和边距
         self.main_layout = QGridLayout(self)
         self.main_layout.setSpacing(15)
@@ -32,7 +42,7 @@ class PageScript(QWidget):
         self.scfg_grid.setContentsMargins(10, 10, 10, 10)
 
         # 创建任务列表控件
-        self.task_list = TaskList(self.model, "点击右侧“添加”按钮以添加任务")
+        self.task_list = TaskList(self.data_model, "点击右侧“添加”按钮以添加任务")
         # 创建日志输出区域
         self.log_area = QTextEdit()
         self.log_area.setPlaceholderText("日志输出区域")
@@ -42,7 +52,6 @@ class PageScript(QWidget):
         # 创建状态标签并设置样式
         self.status_label = QLabel("")
         self.status_label.setStyleSheet("font-weight: bold; color: #2ecc71;")
-        self.update_status()
 
         # 创建当前运行任务标签及内容标签，并设置样式
         self.running_task = QLabel("")
@@ -80,7 +89,7 @@ class PageScript(QWidget):
 
         # 创建脚本选择下拉框，并添加任务名
         self.task_box = QComboBox()
-        self.task_box.addItems(self.model.get_task_names())
+        self.task_box.addItems(list(self.data_model.TASK_MAP.keys()))
         self.task_box.setFixedWidth(200)
         self.hwnd_box = QComboBox()
         self.hwnd_box.setFixedWidth(200)
@@ -122,12 +131,6 @@ class PageScript(QWidget):
 
         self._setup_connections() # 连接信号与槽
 
-    def update_status(self):
-        """
-        更新当前状态标签.
-        """
-        self.status_label.setText(self.model.get_status())
-    
     def open_script_cfg(self):
         """
         打开脚本配置窗口.
@@ -180,46 +183,58 @@ class PageScript(QWidget):
         """
         连接所有信号与槽.
         """
-        # 连接运行按钮到切换运行状态的方法
+        self.runner.status_msg_changed.connect(self.status_label.setText)
+        self.runner.status_msg_changed.connect(self.update_run_button_state) # 复用按钮状态逻辑
+        self.runner.progress_changed.connect(self.progress_bar.setValue)
+        self.runner.current_task_changed.connect(self.set_running_task)
+        
+        # WindowManager 信号 -> UI 更新
+        self.window_manager.connected.connect(self._on_window_connected)
+        self.window_manager.disconnected.connect(self._on_window_disconnected)
+
+        # 按钮点击事件
         self.run_btn.clicked.connect(self._toggle_run_queue)
+        self.pause_btn.clicked.connect(self._toggle_pause_task)
+        self.add_task_btn.clicked.connect(lambda: self.data_model.add_task(self.task_box.currentText()))
+        self.clear_run_list_btn.clicked.connect(lambda: self.data_model.clear_tasks())
         
-        # 连接 Model 的状态变化信号到 UI 更新方法
-        self.model.status_changed.connect(self.update_run_button_state)
-        self.model.queue_paused_changed.connect(self._update_pause_button_state)
-        
-        # 其他信号连接，如更新状态标签、日志等
-        self.model.status_changed.connect(self.update_status)
-        self.model.progress_changed.connect(self.progress_bar.setValue)
-        self.model.running_task_changed.connect(self.set_running_task)
-        self.model.connect_window_changed.connect(self.window_title.setText)
-        self.add_task_btn.clicked.connect(lambda: self.model.add_task(self.task_box.currentText()))
-        self.script_cfg_btn.clicked.connect(lambda: self.open_script_cfg())
-        self.find_window_btn.clicked.connect(lambda: self.get_window_handles())
-        self.connect_window_btn.clicked.connect(lambda: self.connect_window())
+        self.script_cfg_btn.clicked.connect(self.open_script_cfg)
+        self.find_window_btn.clicked.connect(self.get_window_handles)
+        self.connect_window_btn.clicked.connect(self.connect_window)
         self.show_window_btn.clicked.connect(lambda: self.show_window(self.get_current_hwnd()))
-        self.clear_run_list_btn.clicked.connect(lambda: self.model.clear_run_list())
-        self.pause_btn.clicked.connect(lambda: self._toggle_pause_task())
+        
+        # 日志
         logger.log_signal.connect(self.display_log_message)
 
+    def _on_window_connected(self, hwnd, title):
+        self.window_title.setText(title)
+        logger.info(f"已连接窗口: {title}")
+
+    def _on_window_disconnected(self):
+        self.window_title.setText("未连接")
+        logger.warning("连接断开或窗口未找到")
 
     def get_window_handles(self):
         """
         获取当前所有窗口的句柄并更新下拉框。
         """
-        handles = self.model.get_target_window_handles(self.model.window_title)
+        target_title = task_cfg_model.task_cfg.get("window_title", "")
+        handles = self.window_manager.get_windows_by_filter(target_title)
         self.hwnd_box.clear()
-        self.hwnd_box.addItems([str(hwnd) for hwnd in handles])
+        if handles:
+            self.hwnd_box.addItems([str(h) for h in handles])
+            logger.info(f"找到 {len(handles)} 个窗口")
+        else:
+            self.hwnd_box.addItem("无")
+            logger.warning("未找到匹配窗口")
 
     def connect_window(self):
         """
         连接到当前选中的窗口句柄。
         """
-        if self.hwnd_box.currentText() == "无" or self.hwnd_box.currentText() == "":
-            logger.error("请选择一个窗口句柄！")
-            return
-        self.model.set_hwnd(int(self.hwnd_box.currentText()))
-        self.model.connect_window()
-    
+        hwnd = self.get_current_hwnd()
+        self.window_manager.connect_by_hwnd(hwnd)
+
     def show_window(self, hwnd: int = 0):
         """
         显示当前连接的窗口.
@@ -258,25 +273,41 @@ class PageScript(QWidget):
         """
         根据当前状态切换运行/停止任务队列。
         """
-        if self.model.is_queue_running():
-            self.model.stop_queue()
+        if self.runner.is_running():
+            self.runner.stop()
         else:
-            self.model.start_queue()
+            # 启动时需要传入任务列表和句柄
+            tasks = self.data_model.get_tasks()
+            hwnd = self.window_manager.get_hwnd()
+            
+            if not hwnd:
+                logger.error("请先连接游戏窗口！")
+                return
+            if not tasks:
+                logger.warning("任务列表为空！")
+                return
+
+            loop_count = task_cfg_model.task_cfg.get("loop_count", 1)
+            timeout = task_cfg_model.task_cfg.get("timeout", 600)
+            
+            self.runner.start(tasks, hwnd, loop_count=loop_count, timeout=timeout)
 
     def _toggle_pause_task(self):
         """
         暂停当前运行的任务队列。
         """
-        if self.model.is_queue_paused():
-            self.model.resume_queue()
+        if self.runner._is_paused:
+            self.runner.resume()
+            self.pause_btn.setText("暂停任务")
         else:
-            self.model.pause_queue()
+            self.runner.pause()
+            self.pause_btn.setText("继续任务")
 
     def update_run_button_state(self, status: str):
         """
         根据 TaskModel 发出的状态信号更新运行按钮的文本和样式。
         """
-        # 1. 按钮文本和功能切换
+        # 按钮文本和功能切换
         if status == "运行中" or status == "已暂停":
             self.run_btn.setText("停止运行")
             self.add_task_btn.setEnabled(False) 
