@@ -1,5 +1,6 @@
 from .template_maching_task import TemplateMatchingTask
 from ..ui.core.logger import logger
+import template_img
 import random
 
 class LunJian(TemplateMatchingTask):
@@ -12,13 +13,13 @@ class LunJian(TemplateMatchingTask):
     TASK_NAME = "论剑"  # 论剑任务
 
     # 模板图片路径列表
-    TEMPLATE_PATH_LIST = [
-        "template_img/huo_dong.png",
-        "template_img/fen_zheng.png",
-        "template_img/1_v_1.png",
-        "template_img/tui_chu_lun_jian.png",
-        "template_img/que_ding.png",
-    ]
+    TEMPLATE_PATH_LIST = {
+        "huo_dong": template_img.TEMPLAET["huo_dong"],
+        "fen_zheng": template_img.TEMPLAET["fen_zheng"],
+        "1_v_1": template_img.TEMPLAET["1_v_1"],
+        "tui_chu_lun_jian": template_img.TEMPLAET["tui_chu_lun_jian"],
+        "que_ding": template_img.TEMPLAET["que_ding"],
+    }
 
     def __init__(self, config: dict, log_mode: int = 0):
         """
@@ -34,16 +35,7 @@ class LunJian(TemplateMatchingTask):
         Returns:
             list: 模板图片路径列表
         """
-        return self.TEMPLATE_PATH_LIST
-
-    def get_base_window_size(self) -> tuple:
-        """
-        获取基准窗口尺寸.
-
-        Returns:
-            tuple: 基准窗口尺寸 (宽度, 高度)
-        """
-        return self.base_window_size
+        return [template["path"] for template in self.TEMPLATE_PATH_LIST.values()]
 
     def get_task_name(self) -> str:
         """
@@ -77,18 +69,19 @@ class LunJian(TemplateMatchingTask):
                 matched = False
                 
                 # 遍历所有模板
-                for template_path in self.get_template_path_list():
+                for key in self.TEMPLATE_PATH_LIST.keys():
+                    template = self.TEMPLATE_PATH_LIST[key]
                     
                     # 每次迭代前再次检查是否超时或被外部停止
                     if self.check_timeout() or not self.running:
                         return # 超时或被停止，退出任务逻辑
                     
                     # 跳过已点击的模板
-                    if template_path in self.clicked_templates:
+                    if template["path"] in self.clicked_templates:
                         continue
                     
                     # 捕获截图并匹配模板
-                    match_result = self.capture_and_match_template(template_path, None)
+                    match_result = self.capture_and_match_template(template, None)
                     if match_result is None:
                         # 如果捕获失败，等待重试时检查停止/超时
                         if self._pause_aware_sleep(self.template_retry_delay):
@@ -98,13 +91,13 @@ class LunJian(TemplateMatchingTask):
                     center, match_val, size = match_result
                     if center:
                         # 点击匹配到的模板
-                        if self.click_template(template_path, center, size):
+                        if self.click_template(template["path"], center, size):
                             matched = True
-                            logger.info(f"[{self.get_task_name()}]模板 {template_path} 已处理完成, 相似度{match_val:.3f}", mode=self.log_mode)
+                            logger.info(f"[{self.get_task_name()}]模板 {template["path"]} 已处理完成, 相似度{match_val:.3f}", mode=self.log_mode)
                             
                             # 特殊处理
                             # 如果点击确认，记录点击并退出循环
-                            if "template_img/que_ding.png" in template_path and "template_img/tui_chu_lun_jian.png" in self.clicked_templates:
+                            if key == "que_ding" and "template_img/tui_chu_lun_jian.png" in self.clicked_templates:
                                 logger.info(f"[{self.get_task_name()}]已执行退出副本操作，结束任务。", mode=self.log_mode)
                                 self.stop() # 停止任务，退出 while 循环
                                 return 
@@ -136,26 +129,6 @@ class LunJian(TemplateMatchingTask):
         except KeyboardInterrupt:
             logger.info(f"[{self.get_task_name()}]任务被手动停止。", mode=self.log_mode)
         return # 任务逻辑结束
-
-    def start(self):
-        """
-        启动任务.
-        """
-        if not self._running:
-            self._running = True
-            self._stop_event.clear()  # 确保停止事件未设置
-            self.clicked_templates.clear()  # 启动时清空点击记录
-            logger.info(f"任务 {self.get_task_name()} 已启动", mode=self.log_mode)
-
-    def stop(self):
-        """
-        停止任务.
-        """
-        if self._running:
-            self._running = False
-            self._stop_event.set()  # 设置停止事件
-            self.clicked_templates.clear()  # 停止时清空点击记录
-            logger.info(f"任务 {self.get_task_name()} 已停止", mode=self.log_mode)
 
     def __str__(self):
         """

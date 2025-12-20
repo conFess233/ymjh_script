@@ -23,7 +23,6 @@ class ScriptCfgWindow(QDialog):
         accept_btn.clicked.connect(self.apply_task_cfg)
         # 创建各项配置标签
         self.window_title = QLabel("目标窗口标题：")                        # 目标窗口标题
-        self.base_window_size = QLabel("基准窗口大小：")                    # 基准窗口大小，用于尺寸比例换算
         self.match_threshold = QLabel("模板匹配阈值(0.1-1.0):")             # 模板匹配阈值
         self.click_delay = QLabel("点击后的等待时间(秒):")                  # 点击后的等待时间（秒）
         self.capture_retry_delay = QLabel("捕获失败重试延迟(秒):")          # 捕获失败重试延迟（秒）
@@ -36,23 +35,12 @@ class ScriptCfgWindow(QDialog):
         # 创建目标窗口标题输入框，默认"一梦江湖"
         self.window_title_input = QLineEdit()
         self.window_title_input.setText("一梦江湖")
-        
-        # 创建基准窗口宽度输入框，范围1-10000，步长10，默认2560
-        self.bws_width_input = QSpinBox()
-        self.bws_width_input.setRange(1, 10000)
-        self.bws_width_input.setSingleStep(10)
-        self.bws_width_input.setValue(2560)
-        # 创建基准窗口高度输入框，范围1-10000，步长10，默认1440
-        self.bws_height_input = QSpinBox()
-        self.bws_height_input.setRange(1, 10000)
-        self.bws_height_input.setSingleStep(10)
-        self.bws_height_input.setValue(1440)
 
         # 创建默认模板匹配阈值输入框，范围0.1-1.0，步长0.01，默认0.6
         self.mt_input = QDoubleSpinBox()
         self.mt_input.setRange(0.1, 1.0)
         self.mt_input.setSingleStep(0.01)
-        self.mt_input.setValue(0.6)
+        self.mt_input.setValue(0.7)
 
         # 创建点击后等待时间输入框，范围0.1-10.0，步长0.1，默认3.0
         self.cd_input = QDoubleSpinBox()
@@ -97,10 +85,6 @@ class ScriptCfgWindow(QDialog):
         self.rand_delay_input.setValue(0.2)
 
         # 将各控件添加到主布局的指定位置
-        self.main_layout.addWidget(self.base_window_size, 0, 0)
-        self.main_layout.addWidget(self.bws_width_input, 0, 1)
-        self.main_layout.addWidget(self.bws_height_input, 0, 2)
-
         self.main_layout.addWidget(self.match_threshold, 1, 0)
         self.main_layout.addWidget(self.mt_input, 1, 1, 1, 2)
 
@@ -139,8 +123,6 @@ class ScriptCfgWindow(QDialog):
         """
         task_cfg = task_cfg_model.get_task_cfg()
         self.window_title_input.setText(task_cfg["window_title"])
-        self.bws_width_input.setValue(task_cfg["base_window_size"][0])
-        self.bws_height_input.setValue(task_cfg["base_window_size"][1])
         self.mt_input.setValue(task_cfg["match_threshold"])
         self.cd_input.setValue(task_cfg["click_delay"])
         self.crd_input.setValue(task_cfg["capture_retry_delay"])
@@ -156,7 +138,6 @@ class ScriptCfgWindow(QDialog):
         """
         task_cfg_model.update_task_cfg({
             "window_title": self.window_title_input.text(),
-            "base_window_size": (self.bws_width_input.value(), self.bws_height_input.value()),
             "match_threshold": self.mt_input.value(),
             "click_delay": self.cd_input.value(),
             "capture_retry_delay": self.crd_input.value(),

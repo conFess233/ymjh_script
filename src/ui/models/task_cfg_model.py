@@ -27,7 +27,6 @@ class _TaskCfgModel(QObject):
             "window_title": "一梦江湖",          # 目标窗口标题
             "timeout": 600,                     # 任务超时时间（秒）
             "loop_count": 1,                    # 循环次数
-            "base_window_size": (2560, 1330),   # 基准窗口大小，用于尺寸比例换算
             "match_threshold": 0.6,             # 默认模板匹配阈值
             "click_delay": 3,                   # 点击后的默认等待时间（秒）
             "capture_retry_delay": 2,           # 捕获失败重试延迟（秒）

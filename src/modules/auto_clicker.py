@@ -60,8 +60,9 @@ class AutoClicker:
         else:
             rx = ry = random_range
         
-        cx = x + random.randint(-rx, rx)
-        cy = y + random.randint(-ry, ry)
+        cx = x + random.randint(int(-rx / 2), int(rx / 2))
+        cy = y + random.randint(int(-ry / 2), int(ry / 2))
+        print(random_range)
 
         # 组合坐标参数 (高位y, 低位x)
         lparam = win32api.MAKELONG(cx, cy)

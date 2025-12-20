@@ -29,7 +29,6 @@ class TemplateMatchingTask(Task):
         并设置默认的匹配参数、延迟时间以及重试机制。
 
         Args:
-            base_window_size (tuple): 基准窗口大小，用于缩放匹配区域。默认值为 (2560, 1330)，根据实际截取模板时的客户端窗口大小调整(经测试, 在2K屏幕下, 设置为2560, 1330效果较好)。
             match_threshold (float): 默认匹配阈值（0~1 之间），匹配得分高于该值时视为匹配成功。
             click_delay (float): 每次点击后的等待时间（秒）。
             capture_retry_delay (float): 捕获失败后的重试延迟时间（秒）。
@@ -37,7 +36,6 @@ class TemplateMatchingTask(Task):
             match_loop_delay (float): 模板匹配循环延迟（秒）。
         """
         # 初始化参数设置
-        self.base_window_size = config["base_window_size"]                  # 基准窗口大小，用于尺寸比例换算
         self.match_threshold = config["match_threshold"]                    # 默认模板匹配阈值
         self.click_delay = config["click_delay"]                            # 点击后的默认等待时间（秒）
         self.capture_retry_delay = config["capture_retry_delay"]            # 捕获失败重试延迟（秒）
@@ -47,7 +45,7 @@ class TemplateMatchingTask(Task):
 
         self.task_timeout = None                                            # 任务允许的最大运行时间（秒）
         self.start_time = None                                              # 任务开始运行的时间戳
-        self.template_matcher = TemplateMatcher("", self.base_window_size)  # 模板匹配器实例
+        self.template_matcher = TemplateMatcher()      # 模板匹配器实例
 
         self.log_mode = log_mode                                            # 日志模式
 
@@ -80,7 +78,6 @@ class TemplateMatchingTask(Task):
         Args:
             new_cfg (dict): 包含新任务配置的字典，键值对与任务参数对应。
         """
-        self.base_window_size = new_cfg["base_window_size"]
         self.match_threshold = new_cfg["match_threshold"]
         self.click_delay = new_cfg["click_delay"]
         self.capture_retry_delay = new_cfg["capture_retry_delay"]
@@ -143,7 +140,7 @@ class TemplateMatchingTask(Task):
             return None
         return screenshot
 
-    def match_template(self, screenshot: np.ndarray, template_path: str, 
+    def match_template(self, screenshot: np.ndarray, template: dict, 
                     screenshot_size: tuple[int, int] | None = None) -> tuple[tuple[int, int], float, tuple[int, int] | None] | None:
         """
         使用模板匹配方法匹配指定模板。
@@ -153,7 +150,7 @@ class TemplateMatchingTask(Task):
 
         Args:
             screenshot (np.ndarray): 当前窗口或屏幕截图的图像数组。
-            template_path (str): 模板图片文件路径。
+            template (dict): 模板参数字典，包含 "path" (str), "rect" (Tuple[int, int, int, int]), 和 "base_size" (Tuple[int, int])。
             screenshot_size (Optional[Tuple[int, ...]]): 截图尺寸 (width, height)。
                 若为 None，则自动从 screenshot 获取。
 
@@ -166,23 +163,32 @@ class TemplateMatchingTask(Task):
         """
         if screenshot_size is None:
             screenshot_size = self.get_screenshot_size(screenshot)
+        # 获取模板参数
+        template_path: str = template.get("path", '')
+        template_rect: tuple[int, int, int, int] | None = template.get("rect", None)
+        template_base_size: tuple[int, int] = template.get("base_size", (0, 0))
+        if template_path == '' or template_base_size == (0, 0):
+            logger.error(f"模板{template_path}缺少 path 或 base_size 参数, rect={template_rect}, base_size={template_base_size}, rect={template_rect}", mode=self.log_mode)
+            return None
         
         # 设置模板并进行匹配
         self.template_matcher.set_template(template_path)
         if not "tiao_guo_ju_qing.png" in template_path:
             match_result = self.template_matcher.match_scaled(
-                screenshot, 
-                threshold=self.match_threshold
+                screenshot=screenshot, 
+                threshold=self.match_threshold,
+                rect=template_rect,
+                base_size=template_base_size
             )
         else:
-            match_result = self.template_matcher.pyramid_template_match(screenshot)
+            match_result = self.template_matcher.pyramid_template_match(screenshot=screenshot, threshold=0.5, base_size=template_base_size)
 
         center, match_val, size = match_result
         if center is None:
             return None
         return (center, match_val, size)
     
-    def capture_and_match_template(self, template_path: str, 
+    def capture_and_match_template(self, template: dict, 
                                 screenshot_size: tuple[int, int] | None = None) -> tuple[tuple[int, int], float, tuple[int, int]] | None:
         """
         捕获截图并匹配指定模板。
@@ -191,7 +197,7 @@ class TemplateMatchingTask(Task):
         若匹配成功，可由子类对坐标进行进一步处理。
 
         Args:
-            template_path (str): 模板图片路径。
+            template (dict): 模板参数字典，包含 "path" (str), "rect" (Tuple[int, int, int, int]), 和 "base_size" (Tuple[int, int])。
             screenshot_size (Optional[tuple[int, int]]): 截图尺寸 (width, height)。
                 若为 None，则自动获取。
 
@@ -209,12 +215,12 @@ class TemplateMatchingTask(Task):
             screenshot_size = self.get_screenshot_size(screenshot)
         
         # 模板匹配
-        match_result = self.match_template(screenshot, template_path, screenshot_size)
+        match_result = self.match_template(screenshot, template, screenshot_size)
         
         # 特殊处理：子类可以重写此方法来调整模板坐标
         if match_result is not None:
             screenshot_w, screenshot_h = screenshot_size
-            match_result = self.process_special_templates_point(template_path, match_result, screenshot_w, screenshot_h)
+            match_result = self.process_special_templates_point(template.get("path", ''), match_result, screenshot_w, screenshot_h)
             if match_result and match_result[0] is not None:
                 return match_result
         
@@ -238,15 +244,13 @@ class TemplateMatchingTask(Task):
         # 默认实现：不修改任何坐标
         return match_result
     
-    def match_multiple_templates(self, template_path_list: list, target_template: str, match_val_threshold: float = 0.6, direction: str = '', direction_size: int = 60) -> tuple[tuple[int, int], float, tuple[int, int] | None] | None:
+    def match_multiple_templates(self, template_list: list, target_template: dict, match_val_threshold: float = 0.6) -> tuple[tuple[int, int], float, tuple[int, int] | None] | None:
         """
         匹配多个模板图片, 若所有图片都匹配成功, 则返回指定图片的坐标以及相似度
 
         Args:
             template_path_list(list): 模板图片路径列表
             match_val_threshold(str): 匹配相似度阈值
-            direction(str): 指定匹配哪个区域的图片（上下左右, u w l r）
-            direction_size(int): 指定匹配区域的大小（百分比）
 
         Returns:
             Optional[Tuple[Tuple[int, int], float, tuple[int, int]]]: 
@@ -260,28 +264,16 @@ class TemplateMatchingTask(Task):
         screenshot_w, screenshot_h = screenshot_size
         
         target_match_result = None
-        for template_path in template_path_list:
-            match_result = self.match_template(screenshot, template_path)
+        for template in template_list:
+            match_result = self.match_template(screenshot, template)
             if match_result is None or match_result[1] < match_val_threshold:
                 return None
-            else:
-                center_x, center_y = match_result[0]
-                if direction == 'r' and center_x < screenshot_w * (1 - direction_size / 100):
-                    return None
-                elif direction == 'l' and center_x > screenshot_w * (direction_size / 100):
-                    return None
-                elif direction == 'u' and center_y > screenshot_h * (direction_size / 100):
-                    return None
-                elif direction == 'w' and center_y < screenshot_h * (1 - direction_size / 100):
-                    return None
-                else:
-                    continue
-        if target_template in template_path:
+        if target_template in template_list:
             target_match_result = match_result
+           #  print(f"匹配到模板 {template.get('path', '')}, 中心坐标: {match_result[0]}, 相似度: {match_result[1]}")
         else:
             print(f"列表中没有模板 {target_template}")
             return None
-        print(f"匹配到模板 {template_path}, 中心坐标: {match_result[0]}, 相似度: {match_result[1]}")
                 
         return target_match_result
 
@@ -314,11 +306,11 @@ class TemplateMatchingTask(Task):
 
         if self.auto_clicker.click(x, y, random_range=r_range):
             self.add_clicked_template(template_path)
-            # print(f"成功点击模板 {template_path}, 坐标: ({x}, {y})")
+            logger.info(f"成功点击模板 {template_path}, 坐标: ({x}, {y})", mode=self.log_mode)
             # print(f"已点击的模板: {self.clicked_templates}")
             return True
         else:
-            # print(f"点击模板 {template_path} 失败, 坐标: ({x}, {y})")
+            logger.error(f"点击模板 {template_path} 失败, 坐标: ({x}, {y})", mode=self.log_mode)
             return False
 
 

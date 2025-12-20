@@ -10,7 +10,7 @@ class TemplateMatcher:
     在图片中寻找模板的坐标位置，支持随时切换模板。
     """
 
-    def __init__(self, template_path: str, base_window_size: tuple):
+    def __init__(self):
         """
         初始化模板匹配器。
 
@@ -21,8 +21,6 @@ class TemplateMatcher:
         self.template_path = None #  当前模板路径
         self.template = None # 当前模板图像
         self.template_gray = None # 当前模板灰度图
-        self.base_window_size = base_window_size # 基准窗口尺寸
-        self.base_w, self.base_h = base_window_size # 基准宽高
         self.last_match = None # 上次匹配结果
         self.method = cv2.TM_CCOEFF_NORMED  # 默认匹配方法
         self.template_mask = None # 模板掩模
@@ -62,7 +60,7 @@ class TemplateMatcher:
         else:
             # 自动生成掩模（排除亮度过低或过高的背景）
             gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-            mask = cv2.inRange(gray, np.array([10], dtype=np.uint8), np.array([245], dtype=np.uint8))
+            mask = cv2.inRange(gray, np.array([5], dtype=np.uint8), np.array([250], dtype=np.uint8))
 
         template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
         
@@ -122,7 +120,7 @@ class TemplateMatcher:
         h, w = self.template_gray.shape[:2]
         return {"path": self.template_path, "width": w, "height": h}
 
-    def match_scaled(self, screenshot: np.ndarray, threshold: float = 0.6) -> Tuple[Optional[Tuple[int, int]], float, Optional[Tuple[int, int]]]:
+    def match_scaled(self, screenshot: np.ndarray, threshold: float = 0.6, rect: Optional[Tuple[int, int, int, int]] = None, base_size: tuple = (2560, 1351), padding:int = 5) -> Tuple[Optional[Tuple[int, int]], float, Optional[Tuple[int, int]]]:
         """
         执行缩放模板匹配。
 
@@ -131,7 +129,10 @@ class TemplateMatcher:
         Args:
             screenshot (np.ndarray): 当前截图图像。
             threshold (float, optional): 匹配阈值，默认 0.6。
-
+            rect (Optional[Tuple[int, int, int, int]], optional): 搜索区域矩形框(x1, y1, x2, y2)，搜索时将裁剪此区域搜索，默认 None 表示完整搜索。
+            base_size (tuple, optional): 基准窗口尺寸 (宽度, 高度)，默认 (2560, 1351)。
+            padding (int, optional): 搜索区域内边距，默认 5。
+        
         Returns:
             匹配结果 (center, match_val, (tw, th)):
                 - center (Tuple[int, int]): 匹配到的目标中心坐标；
@@ -144,22 +145,64 @@ class TemplateMatcher:
 
         # 计算缩放比例
         h1, w1 = screenshot.shape[:2]
-        scale_x = w1 / self.base_w
-        scale_y = h1 / self.base_h
-        scale = (scale_x + scale_y) / 2
+        scale_x = w1 / base_size[0]
+        scale_y = h1 / base_size[1]
+        # print(f"x缩放比例: {scale_x:.4f}, y缩放比例: {scale_y:.4f}, 截图尺寸: {w1}x{h1}")
 
         # 缩放模板与掩模
-        resized_template = cv2.resize(self.template_gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        resized_template = cv2.resize(self.template_gray, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_CUBIC)
         if hasattr(self, "template_mask") and self.template_mask is not None:
-            resized_mask = cv2.resize(self.template_mask, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
+            resized_mask = cv2.resize(self.template_mask, None, fx=scale_x, fy=scale_y, interpolation=cv2.INTER_NEAREST)
         else:
             resized_mask = None
 
         th, tw = resized_template.shape[:2]
-        screenshot_gray = cv2.cvtColor(screenshot, cv2.COLOR_BGR2GRAY)
+
+        # 如果指定了搜索区域，则根据缩放比例调整区域，并裁剪截图
+        search_img = screenshot
+        offset_x, offset_y = 0, 0
+        if rect:
+            x1, y1, x2, y2 = rect
+            # 同步缩放 rect 坐标
+            x1_s = int(x1 * scale_x) - padding
+            y1_s = int(y1 * scale_y) - padding
+            x2_s = int(x2 * scale_x) + padding
+            y2_s = int(y2 * scale_y) + padding
+
+            # 确保裁剪区域的坐标在截图范围内
+            x1_c = max(0, x1_s)
+            y1_c = max(0, y1_s)
+            x2_c = min(w1, x2_s)
+            y2_c = min(h1, y2_s)
+
+            # 只有当区域有效时 (宽度和高度都大于0) 才进行裁剪
+            if x1_c < x2_c and y1_c < y2_c:
+                search_img = screenshot[y1_c:y2_c, x1_c:x2_c]
+                offset_x, offset_y = x1_c, y1_c
+                # print(f"有效裁剪区域: ({x1_c}, {y1_c}, {x2_c}, {y2_c})")
+                # cv2.imshow("search_img", search_img)
+                # cv2.imshow("resized_template", resized_template)
+                # cv2.imshow("sc", screenshot)
+                # cv2.waitKey(0)
+            else:
+                # 如果计算出的区域无效，则直接返回
+                print(f"警告: 计算出的裁剪区域无效. Rect: {rect}, 缩放后Rect: ({x1_c}, {y1_c}, {x2_c}, {y2_c}), 截图尺寸: {w1}x{h1}")
+                return None, 0, None
+
+        if search_img.size == 0:
+            print(f"警告: 裁剪后的搜索区域为空. Rect: {rect}, 缩放后Rect: ({x1_c}, {y1_c}, {x2_c}, {y2_c}), 截图尺寸: {w1}x{h1}")
+            return None, 0, None
+
+        screenshot_gray = cv2.cvtColor(search_img, cv2.COLOR_BGR2GRAY)
+
+        # 检查裁剪后的图像是否小于模板
+        if screenshot_gray.shape[0] < th or screenshot_gray.shape[1] < tw:
+            self.last_match = None
+            return None, 0, None
 
         result = cv2.matchTemplate(screenshot_gray, resized_template, self.method, mask=resized_mask)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+        # print(f"最大匹配值: {max_val:.4f}")
 
         # 匹配结果处理
         if self.method in [cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]:
@@ -172,14 +215,14 @@ class TemplateMatcher:
         # print(f"模板:{self.template_path}, 匹配值: {match_val}, 匹配位置: {match_loc}")
         # 判断阈值，排除inf值
         if match_val >= threshold and match_val != float('inf'):
-            center = (match_loc[0] + tw // 2, match_loc[1] + th // 2)
+            center = (match_loc[0] + offset_x + tw // 2, match_loc[1] + offset_y + th // 2) # 目标在原图中的中心坐标
             self.last_match = (center, match_val, (tw, th))
             return center, match_val, (tw, th)
         else:
             self.last_match = None
             return None, match_val, None
         
-    def pyramid_template_match(self, screenshot: np.ndarray, threshold: float = 0.6) -> Tuple[Optional[Tuple[int, int]], float, Optional[Tuple[int, int]]]:
+    def pyramid_template_match(self, screenshot: np.ndarray, threshold: float = 0.6, base_size: tuple = (2560, 1330)) -> Tuple[Optional[Tuple[int, int]], float, Optional[Tuple[int, int]]]:
         """
         使用图像金字塔多尺度模板匹配，返回最佳匹配结果的中心点坐标和匹配分数。
 
@@ -208,8 +251,8 @@ class TemplateMatcher:
 
         # 计算缩放比例
         h1, w1 = screenshot.shape[:2]
-        scale_x = w1 / self.base_w
-        scale_y = h1 / self.base_h
+        scale_x = w1 / base_size[0]
+        scale_y = h1 / base_size[1]
         scale = (scale_x + scale_y) / 2
 
         for scale in [scale]:
@@ -236,7 +279,7 @@ class TemplateMatcher:
                 best_tw, best_th = tw, th
 
         # 判断阈值
-        if best_val >= threshold and best_loc is not None:
+        if best_val >= threshold and best_loc is not None and best_val != float('inf'):
             center = (best_loc[0] + best_tw // 2, best_loc[1] + best_th // 2)
             self.last_match = (center, best_val, (best_tw, best_th))
             return center, best_val, (best_tw, best_th)
@@ -244,7 +287,7 @@ class TemplateMatcher:
             self.last_match = None
             return None, best_val, None
 
-    def visualize_match(self, screenshot: np.ndarray):
+    def visualize_match(self, screenshot: np.ndarray, last_match = None):
         """
         可视化匹配结果。
 
@@ -253,11 +296,14 @@ class TemplateMatcher:
         Args:
             screenshot (np.ndarray): 截图图像。
         """
-        if not self.last_match:
+        if not self.last_match and not last_match:
             print("尚未找到匹配结果，请先调用匹配方法。")
             return
+        if last_match == None:
+            center, score, (tw, th) = self.last_match  # type: ignore
+        else:
+            center, score, (tw, th) = last_match
 
-        center, score, (tw, th) = self.last_match
         top_left = (center[0] - tw // 2, center[1] - th // 2)
         bottom_right = (center[0] + tw // 2, center[1] + th // 2)
 

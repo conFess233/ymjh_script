@@ -1,6 +1,7 @@
 from .template_maching_task import TemplateMatchingTask
 from ..ui.core.logger import logger
 from .states.ri_chang_states import IdleState
+import template_img
 
 class RiChangFuBen(TemplateMatchingTask):
     """
@@ -11,20 +12,20 @@ class RiChangFuBen(TemplateMatchingTask):
     
     TASK_NAME = "日常副本"  # 日常副本任务
     # 模板图片路径列表，仅用于初始化
-    TEMPLATE_PATH_LIST = [
-        "template_img/huo_dong.png",
-        "template_img/huo_dong_hong_dian.png",
-        "template_img/jiang_hu.png",
-        "template_img/jiang_hu_ji_shi.png",
-        "template_img/jiang_hu_ji_shi_1.png",
-        "template_img/tiao_zhan.png",
-        "template_img/dan_ren_tiao_zhan.png",
-        "template_img/gua_ji.png",
-        "template_img/tiao_guo_ju_qing.png",
-        "template_img/ri_chang_fu_ben_jie_shu.png",
-        "template_img/tui_ben_tui_dui.png",
-        "template_img/ri_chang_fu_ben_tui_chu.png",
-    ]
+    TEMPLATE_LIST:dict = {
+        "huo_dong":template_img.TEMPLAET.get("huo_dong"),
+        "huo_dong_hong_dian":template_img.TEMPLAET.get("huo_dong_hong_dian"),
+        "jiang_hu":template_img.TEMPLAET.get("jiang_hu"),
+        "jiang_hu_ji_shi":template_img.TEMPLAET.get("jiang_hu_ji_shi"),
+        "jiang_hu_ji_shi_1":template_img.TEMPLAET.get("jiang_hu_ji_shi_1"),
+        "tiao_zhan":template_img.TEMPLAET.get("tiao_zhan"),
+        "dan_ren_tiao_zhan":template_img.TEMPLAET.get("dan_ren_tiao_zhan"),
+        "gua_ji":template_img.TEMPLAET.get("gua_ji"),
+        "tiao_guo_ju_qing":template_img.TEMPLAET.get("tiao_guo_ju_qing"),
+        "ri_chang_fu_ben_jie_shu":template_img.TEMPLAET.get("ri_chang_fu_ben_jie_shu"),
+        "tui_ben_tui_dui":template_img.TEMPLAET.get("tui_ben_tui_dui"),
+        "ri_chang_fu_ben_tui_chu":template_img.TEMPLAET.get("ri_chang_fu_ben_tui_chu"),
+    }
 
     def __init__(self, config: dict, log_mode: int = 0):
         """
@@ -41,7 +42,7 @@ class RiChangFuBen(TemplateMatchingTask):
         Returns:
             list: 模板图片路径列表
         """
-        return self.TEMPLATE_PATH_LIST
+        return [template.get("path") for template in self.TEMPLATE_LIST.values()]
 
     def execute_task_logic(self):
         """
@@ -88,12 +89,12 @@ class RiChangFuBen(TemplateMatchingTask):
         Args:
             template_path (str): 模板图片路径
         """
-        if not "tiao_guo_ju_qing.png" in template_path:
-                self.clicked_templates.add(template_path)
-        if template_path in ["template_img/huo_dong.png", "template_img/huo_dong_hong_dian.png"]:
-            self.clicked_templates.update(["template_img/huo_dong.png", "template_img/huo_dong_hong_dian.png"])
-        elif template_path in ["template_img/jiang_hu_ji_shi.png", "template_img/jiang_hu_ji_shi_1.png"]:
-            self.clicked_templates.update(["template_img/jiang_hu_ji_shi.png", "template_img/jiang_hu_ji_shi_1.png"])
+        if template_path != self.TEMPLATE_LIST.get("tiao_guo_ju_qing").get("path"): # type: ignore
+            self.clicked_templates.add(template_path)
+        if template_path == self.TEMPLATE_LIST.get("huo_dong").get("path") or template_path == self.TEMPLATE_LIST.get("huo_dong_hong_dian").get("path"): # type: ignore
+            self.clicked_templates.update([self.TEMPLATE_LIST.get("huo_dong").get("path"), self.TEMPLATE_LIST.get("huo_dong_hong_dian").get("path")]) # type: ignore
+        elif template_path == self.TEMPLATE_LIST.get("jiang_hu_ji_shi").get("path") or template_path == self.TEMPLATE_LIST.get("jiang_hu_ji_shi_1").get("path"): # type: ignore
+            self.clicked_templates.update([self.TEMPLATE_LIST.get("jiang_hu_ji_shi").get("path"), self.TEMPLATE_LIST.get("jiang_hu_ji_shi_1").get("path")]) # type: ignore
 
     def __str__(self):
         """

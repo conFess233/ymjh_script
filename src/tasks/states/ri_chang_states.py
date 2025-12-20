@@ -7,37 +7,38 @@ class IdleState(State):
     """
     def execute(self):
         # 优先检测高频/突发事件：剧情
-        if self.task.capture_and_match_template("template_img/tiao_guo_ju_qing.png"):
+        if self.task.capture_and_match_template(self.task.TEMPLATE_LIST.get("tiao_guo_ju_qing")):
             return DialogState(self.task)
 
         # 检测是否已进入副本
-        if match_result := self.task.capture_and_match_template("template_img/gua_ji.png") and "template_img/dan_ren_tiao_zhan.png" in self.task.clicked_templates:
+        if match_result := self.task.capture_and_match_template(self.task.TEMPLATE_LIST.get("gua_ji")) and self.task.TEMPLATE_LIST.get("huo_dong").get("path") in self.task.clicked_templates:
             return CombatState(self.task)
 
         # 常规任务流程循环
         # 定义此状态下关心的模板列表
-        targets = [
-            "template_img/huo_dong.png",
-            "template_img/huo_dong_hong_dian.png",
-            "template_img/jiang_hu.png",
-            "template_img/jiang_hu_ji_shi.png",
-            "template_img/jiang_hu_ji_shi_1.png",
-            "template_img/tiao_zhan.png",
-            "template_img/dan_ren_tiao_zhan.png",
-        ]
+        targets = {
+            "huo_dong": self.task.TEMPLATE_LIST.get("huo_dong"),
+            "huo_dong_hong_dian": self.task.TEMPLATE_LIST.get("huo_dong_hong_dian"),
+            "jiang_hu": self.task.TEMPLATE_LIST.get("jiang_hu"),
+            "jiang_hu_ji_shi": self.task.TEMPLATE_LIST.get("jiang_hu_ji_shi"),
+            "jiang_hu_ji_shi_1": self.task.TEMPLATE_LIST.get("jiang_hu_ji_shi_1"),
+            "tiao_zhan": self.task.TEMPLATE_LIST.get("tiao_zhan"),
+            "dan_ren_tiao_zhan": self.task.TEMPLATE_LIST.get("dan_ren_tiao_zhan"),
+        }
         
         matched = False
-        for tmpl in targets:
-
+        for key in targets.keys():
+            tmpl = targets[key]
+            # print(f"检查模板 {key}: {tmpl.get('path')}, {tmpl.get('rect')}, {tmpl.get('base_size')}")
             if self.task.check_timeout() or not self.task.running:
                 return # 超时或被停止，退出任务逻辑
             # 跳过已点击的（防止重复点活动图标）
-            if tmpl in self.task.clicked_templates:
+            if tmpl.get("path") in self.task.clicked_templates:
                 continue
             
-            if tmpl == "template_img/huo_dong.png" and "template_img/huo_dong.png" not in self.task.clicked_templates:
+            if tmpl == targets["huo_dong"] and tmpl.get("path") not in self.task.clicked_templates:
                         huo_dong_result = self.task.capture_and_match_template(tmpl)
-                        hong_dian_result = self.task.capture_and_match_template("template_img/huo_dong_hong_dian.png")
+                        hong_dian_result = self.task.capture_and_match_template(targets["huo_dong_hong_dian"])
                         if huo_dong_result and hong_dian_result:
                             if huo_dong_result[1] > hong_dian_result[1]:
                                 match_result = huo_dong_result
@@ -51,10 +52,12 @@ class IdleState(State):
             if match_result:
                 center, val, size = match_result 
                 if center:
-                    self.task.click_template(tmpl, center, size)
-                    logger.info(f"[{self.task.get_task_name()}]模板 {tmpl} 已处理完成, 相似度{val:.3f}", mode=self.task.log_mode)
+                    self.task.click_template(tmpl.get("path"), center, size)
+                    # logger.info(f"[{self.task.get_task_name()}]模板 {key} 已处理完成, 相似度{val:.3f}", mode=self.task.log_mode)
                     matched = True
                     self.sleep(self.task.click_delay)
+            else:
+                self.sleep(self.task.template_retry_delay)
         
         # 检查任务是否全部完成
         if not matched and self.task.is_task_completed():
@@ -74,12 +77,12 @@ class DialogState(State):
 
     def execute(self):
         # 在剧情状态下，只检测“跳过”按钮
-        match_result = self.task.capture_and_match_template("template_img/tiao_guo_ju_qing.png")
+        match_result = self.task.capture_and_match_template(self.task.TEMPLATE_LIST.get("tiao_guo_ju_qing"))
         
         if match_result:
             center, val, size = match_result
             if center:
-                self.task.click_template("template_img/tiao_guo_ju_qing.png", center, size)
+                self.task.click_template(self.task.TEMPLATE_LIST.get("tiao_guo_ju_qing").get("path"), center, size)
                 self.miss_count = 0 # 重置计数
                 self.sleep(0.5, is_random=False) # 点击后快速重试
                 return None # 继续留在剧情状态
@@ -100,32 +103,32 @@ class CombatState(State):
         super().on_enter()
         # 刚进副本，确保点击一次挂机
         if not "template_img/gua_ji.png" in self.task.clicked_templates:
-            match_result = self.task.capture_and_match_template("template_img/gua_ji.png")
+            match_result = self.task.capture_and_match_template(self.task.TEMPLATE_LIST.get("gua_ji"))
             if match_result:
                 center, val, size = match_result
-                self.task.click_template("template_img/gua_ji.png", center, size)
+                self.task.click_template(self.task.TEMPLATE_LIST.get("gua_ji").get("path"), center, size)
                 self.sleep(self.task.click_delay)
 
     def execute(self):
         
         # 战斗中主要关注：是否结束战斗，跳过剧情
-        if self.task.capture_and_match_template("template_img/tiao_guo_ju_qing.png"):
+        if self.task.capture_and_match_template(self.task.TEMPLATE_LIST.get("tiao_guo_ju_qing")):
             return DialogState(self.task)
         
         # 检测退出副本（结束标志）
-        if match_result := self.task.match_multiple_templates(["template_img/ri_chang_fu_ben_jie_shu.png", "template_img/ri_chang_fu_ben_tui_chu.png"],
-                                                                      "template_img/ri_chang_fu_ben_tui_chu.png", direction='r', direction_size=60):
+        if match_result := self.task.match_multiple_templates([self.task.TEMPLATE_LIST.get("ri_chang_fu_ben_jie_shu"), self.task.TEMPLATE_LIST.get("ri_chang_fu_ben_tui_chu")],
+                                                                      self.task.TEMPLATE_LIST.get("ri_chang_fu_ben_tui_chu"), match_val_threshold=0.68):
             center, val, size = match_result
             if center:
-                self.task.click_template("template_img/ri_chang_fu_ben_tui_chu.png", center, size)
+                self.task.click_template(self.task.TEMPLATE_LIST.get("ri_chang_fu_ben_tui_chu").get("path"), center, size)
                 self.sleep(2.0)
                 self.task.auto_clicker.click(center[0], center[1])
-                
-        if "template_img/ri_chang_fu_ben_tui_chu.png" in self.task.clicked_templates:
-            match_result = self.task.match_and_click("template_img/tui_ben_tui_dui.png")
+                self.sleep(2.0)
+        if self.task.TEMPLATE_LIST.get("ri_chang_fu_ben_tui_chu").get("path") in self.task.clicked_templates:
+            match_result = self.task.capture_and_match_template(self.task.TEMPLATE_LIST.get("tui_ben_tui_dui"))
             center, val, size = match_result
             if center:
-                self.task.click_template("template_img/tui_ben_tui_dui.png", center, size)
+                self.task.click_template(self.task.TEMPLATE_LIST.get("tui_ben_tui_dui").get("path"), center, size)
                 logger.info(f"[{self.task.get_task_name()}]已执行退出副本操作，结束任务。", mode=self.task.log_mode)
                 self.task.stop()
         self.sleep(3.0)

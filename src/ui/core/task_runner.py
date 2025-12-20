@@ -110,6 +110,7 @@ class TaskRunner(QObject):
 
         if self._current_task:
                 self._current_task.stop()
+        self.status_msg_changed.emit("已停止")
 
         
 
@@ -150,6 +151,7 @@ class TaskRunner(QObject):
         total_tasks_count = len(tasks)
         current_loop = 0
         all_loop_start_time = time.time()
+        self.progress_changed.emit(0)
 
         try:
             # 外部循环：控制总的运行次数
