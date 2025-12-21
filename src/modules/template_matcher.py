@@ -161,7 +161,7 @@ class TemplateMatcher:
         # 如果指定了搜索区域，则根据缩放比例调整区域，并裁剪截图
         search_img = screenshot
         offset_x, offset_y = 0, 0
-        if rect:
+        if rect and all(coord > 0 for coord in rect):
             x1, y1, x2, y2 = rect
             # 同步缩放 rect 坐标
             x1_s = int(x1 * scale_x) - padding
@@ -295,6 +295,7 @@ class TemplateMatcher:
 
         Args:
             screenshot (np.ndarray): 截图图像。
+            last_match (Tuple[Tuple[int, int], float, Tuple[int, int]], optional): 匹配结果 (center, match_val, (tw, th))，默认 None。
         """
         if not self.last_match and not last_match:
             print("尚未找到匹配结果，请先调用匹配方法。")

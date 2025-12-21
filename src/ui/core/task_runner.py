@@ -258,3 +258,11 @@ class TaskRunner(QObject):
             with self._pause_condition:
                 self._is_paused = False
                 self._pause_condition.notify_all()
+
+    def wait_for_stop(self, timeout: float = 1.0):
+        """
+        等待任务队列停止运行，最多等待 timeout 秒。
+        """
+        self._stop_event.wait(timeout)
+        if not self._stop_event.is_set():
+            logger.warning(f"等待任务队列停止超时 {timeout} 秒", mode=self.log_mode)

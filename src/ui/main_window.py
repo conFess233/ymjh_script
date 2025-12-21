@@ -9,6 +9,7 @@ from .pages.page_setting import PageSetting
 from .core.theme_manager import theme_manager
 from .models.settings_model import SettingsModel
 from .pages.page_multiple import PageMultiple
+from .pages.page_create_template import PageCreateTemplate
 from .core.logger import logger
 
 class MainWindow(QMainWindow):
@@ -36,8 +37,9 @@ class MainWindow(QMainWindow):
         self.btn_script = QPushButton("脚本执行")
         self.btn_multiple = QPushButton("多开")
         self.btn_setting = QPushButton("设置")
+        self.btn_create_template = QPushButton("创建模板")
 
-        for btn in [self.btn_dir, self.btn_script, self.btn_multiple, self.btn_setting]:
+        for btn in [self.btn_dir, self.btn_script, self.btn_multiple, self.btn_setting, self.btn_create_template]:
             btn.setMinimumHeight(40)
             self.nav_layout.addWidget(btn)
         self.nav_layout.addStretch()
@@ -53,17 +55,20 @@ class MainWindow(QMainWindow):
         self.page_script = PageScript()
         self.page_multiple = PageMultiple()
         self.page_setting = PageSetting(main_window=self)
+        self.page_create_template = PageCreateTemplate()
 
         self.stack_layout.addWidget(self.page_dir)
         self.stack_layout.addWidget(self.page_script)
         self.stack_layout.addWidget(self.page_multiple)
         self.stack_layout.addWidget(self.page_setting)
+        self.stack_layout.addWidget(self.page_create_template)
         # 映射
         self.page_dict = {
             "dir": (self.page_dir, self.btn_dir),
             "script": (self.page_script, self.btn_script),
             "multiple": (self.page_multiple, self.btn_multiple),
-            "setting": (self.page_setting, self.btn_setting)
+            "setting": (self.page_setting, self.btn_setting),
+            "create_template": (self.page_create_template, self.btn_create_template)
         }
 
         # 按钮绑定
@@ -71,6 +76,7 @@ class MainWindow(QMainWindow):
         self.btn_script.clicked.connect(lambda: self.switch_page("script"))
         self.btn_multiple.clicked.connect(lambda: self.switch_page("multiple"))
         self.btn_setting.clicked.connect(lambda: self.switch_page("setting"))
+        self.btn_create_template.clicked.connect(lambda: self.switch_page("create_template"))
         self.switch_page("dir")
 
         # 控制器
@@ -108,10 +114,10 @@ class MainWindow(QMainWindow):
         # 清理脚本执行页面的任务线程
         if hasattr(self.page_script, 'model'):
             # 如果正在运行，先停止
-            self.page_script.model.stop_queue()
+            self.page_script.runner.stop()
             # 等待内部 Python 线程结束，防止它在 QObject 销毁后继续发射信号
-            if hasattr(self.page_script.model, 'wait_for_stop'):
-                self.page_script.model.wait_for_stop(timeout=1.0)
+            if hasattr(self.page_script.runner, 'wait_for_stop'):
+                self.page_script.runner.wait_for_stop(timeout=1.0)
 
         # 确保日志等资源保存
         logger.save_log_to_file()
